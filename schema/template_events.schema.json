@@ -103,11 +103,18 @@
                 },
                 "level": {
                     "type": "string",
-                    "description": "Difficulty tier id, as defined in this lane's meta.yaml 'levels' block."
+                    "description": "The class this session belongs to - a key from this lane's meta.yaml 'levels' block (for KSL: seed / starlight / moonlight). Omit for sessions that are not classes."
                 },
                 "role": {
-                    "$ref": "#/$defs/localized_text",
-                    "description": "The host's role, e.g. 담임 / Teacher, 부장 / Head."
+                    "description": "The host's official title. Normally a key from this lane's meta.yaml 'roles' block (e.g. homeroom_teacher); an inline {ko, en} mapping is accepted for a one-off guest who holds no standing title.",
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "$ref": "#/$defs/localized_text"
+                        }
+                    ]
                 },
                 "platforms": {
                     "type": "array",

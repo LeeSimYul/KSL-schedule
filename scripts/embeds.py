@@ -21,6 +21,7 @@ from definitions import (
     EventLaneEvent,
     EventLaneLevel,
     EventLaneLocalization,
+    EventLaneRole,
     EventLaneVRChatInfo,
     LocalizedText,
     Occurrence,
@@ -79,7 +80,7 @@ CLOCK_EMOJIS: list[tuple[float, str]] = [
 #: printing "퀘스트 · Quest" costs a line of width and tells nobody anything new.
 PLATFORM_LABELS: dict[Platform, str] = {
     "pcvr":    "\N{DESKTOP COMPUTER}\N{VARIATION SELECTOR-16} PCVR",
-    "quest":   "\N{GOGGLES} Quest",
+    "quest":   "\N{GOGGLES} Quest Standalone",
     "desktop": "\N{PERSONAL COMPUTER} Desktop",
     "mobile":  "\N{MOBILE PHONE} Mobile",
 }
@@ -90,11 +91,16 @@ HAND_TRACKING_LABELS: dict[str, LocalizedText] = {
     "supported":   {"ko": "핸드트래킹 지원", "en": "hand tracking supported"},
 }
 
+#: The equipment line lists independent options, so it is separated more strongly than
+#: the middle dot used to join translations of the same thing.
+EQUIPMENT_SEPARATOR = " | "
+
 #: Default vocabulary for the embed's own furniture. A lane can override any of these
 #: through ``localization.labels`` in its ``meta.yaml``.
 DEFAULT_LABELS: dict[str, LocalizedText] = {
     "host":          {"ko": "진행자", "en": "Host"},
-    "level":         {"ko": "난이도", "en": "Level"},
+    "level":         {"ko": "학급", "en": "Class"},
+    "equipment":     {"ko": "권장 장비", "en": "Equipment"},
     "join":          {"ko": "참여하기", "en": "Join"},
     "group":         {"ko": "VRChat 그룹", "en": "VRChat Group"},
     "instance":      {"ko": "월드 바로가기", "en": "Join Instance"},
@@ -195,7 +201,12 @@ def format_level(
     levels: dict[str, EventLaneLevel],
     localizer: Localizer,
 ) -> str | None:
-    """Render a difficulty tier, e.g. ``🌱 뿌리 (초급) · Root (Elementary)``."""
+    """
+    Render the class a session belongs to, e.g. ``🌱 [씨앗반 - 입문]``.
+
+    The brackets set the class apart from the free text around it, and on a bilingual
+    lane both languages sit inside the one pair rather than each getting their own.
+    """
     if not level_key:
         return None
 
@@ -203,17 +214,20 @@ def format_level(
 
     if level is None:
         # An unknown key is still worth surfacing - better a raw key in the schedule than
-        # a silently missing difficulty on a class that has one.
-        return level_key
+        # a silently missing class on a session that has one.
+        return f"[{level_key}]"
 
     emoji = level.get("emoji", "")
     names = localizer.text(level.get("names", {}), fallback=level_key)
 
-    return f"{emoji} {names}".strip()
+    return f"{emoji} [{names}]".strip()
 
 
 def format_environment(event: EventLaneEvent, localizer: Localizer) -> str | None:
-    """Render the recommended/required VR environment, e.g. ``🖥️ PCVR · 🥽 퀘스트``."""
+    """
+    Render the equipment line, e.g.
+    ``🖥️ PCVR | 🥽 Quest Standalone | 💻 Desktop | 🖐️ 핸드트래킹 지원``.
+    """
     parts: list[str] = []
 
     for platform in event.platforms:
@@ -222,12 +236,12 @@ def format_environment(event: EventLaneEvent, localizer: Localizer) -> str | Non
     hand_tracking = HAND_TRACKING_LABELS.get(event.hand_tracking or "", None)
 
     if hand_tracking is not None:
-        parts.append(f"\N{RAISED HAND} {localizer.text(hand_tracking)}")
+        parts.append(f"\N{RAISED HAND WITH FINGERS SPLAYED}\N{VARIATION SELECTOR-16} {localizer.text(hand_tracking)}")
 
     if not parts:
         return None
 
-    return DEFAULT_SEPARATOR.join(parts)
+    return EQUIPMENT_SEPARATOR.join(parts)
 
 
 def resolve_vrchat(event: EventLaneEvent, lane_vrchat: EventLaneVRChatInfo | None) -> EventLaneVRChatInfo:
@@ -259,10 +273,44 @@ def format_vrchat_links(vrchat: EventLaneVRChatInfo, localizer: Localizer) -> st
     return "\N{LINK SYMBOL} " + DEFAULT_SEPARATOR.join(parts)
 
 
-def format_host(event: EventLaneEvent, localizer: Localizer) -> str:
-    """``진행자 · Host: Korea_Yujin (담임 · Teacher)``"""
+def resolve_role(
+    role: str | LocalizedText | None,
+    roles: dict[str, EventLaneRole],
+    localizer: Localizer,
+) -> str | None:
+    """
+    Render a host's official title, e.g. ``🏫 담임선생님``.
+
+    ``role`` is normally a key into the lane's ``roles`` block, so that renaming a title
+    is one edit rather than one per class. An inline mapping is still accepted for a
+    one-off guest who holds no standing title.
+    """
+    if not role:
+        return None
+
+    if isinstance(role, str):
+        entry = roles.get(role, None)
+
+        if entry is None:
+            # Better a visible unknown title than a silently missing one.
+            return role
+
+        emoji = entry.get("emoji", "")
+        names = localizer.text(entry.get("names", {}), fallback=role)
+
+        return f"{emoji} {names}".strip()
+
+    return localizer.text(role) or None
+
+
+def format_host(
+    event: EventLaneEvent,
+    localizer: Localizer,
+    roles: dict[str, EventLaneRole] | None = None,
+) -> str:
+    """``진행자 · Host: Korea_Yujin (🏫 담임선생님 · Homeroom Teacher)``"""
     text = f"{localizer.label('host')}: {event.host}"
-    role = localizer.text(event.role)
+    role = resolve_role(event.role, roles or {}, localizer)
 
     if role:
         text = f"{text} ({role})"
@@ -277,6 +325,7 @@ def format_occurrence_block(
     display_timezones: typing.Sequence[DisplayTimezone],
     lane_vrchat: EventLaneVRChatInfo | None = None,
     reference_date: datetime.date | None = None,
+    roles: dict[str, EventLaneRole] | None = None,
 ) -> str:
     """
     One event's entry inside a day embed.
@@ -290,7 +339,7 @@ def format_occurrence_block(
 
     title = localizer.text(event.title, fallback=event.name)
     lines.append(f"**{title}**")
-    lines.append(f"-# {format_host(event, localizer)}")
+    lines.append(f"-# {format_host(event, localizer, roles)}")
 
     for description_line in localizer.lines(event.description):
         lines.append(f"-# {description_line}")
@@ -303,17 +352,17 @@ def format_occurrence_block(
     for timezone_text in timezone_lines(occurrence.starts_at, display_timezones, reference_date):
         lines.append(f"{INDENT}{timezone_text}")
 
-    details = [
-        detail
-        for detail in (
-            format_level(event.level, levels, localizer),
-            format_environment(event, localizer),
-        )
-        if detail
-    ]
+    # Class and equipment get a line each. Packed onto one line they ran past the width
+    # of a phone-sized embed, and the two kinds of information blurred together.
+    class_line = format_level(event.level, levels, localizer)
 
-    if details:
-        lines.append(f"-# {' │ '.join(details)}")
+    if class_line:
+        lines.append(f"-# {class_line}")
+
+    equipment_line = format_environment(event, localizer)
+
+    if equipment_line:
+        lines.append(f"-# {equipment_line}")
 
     links = format_vrchat_links(resolve_vrchat(event, lane_vrchat), localizer)
 
@@ -477,6 +526,7 @@ def build_weekly_embeds(
     """Build the full set of embeds for a lane's weekly schedule message."""
     localizer = Localizer(lane.meta.get("localization", None))
     levels = lane.meta.get("levels", {})
+    roles = lane.meta.get("roles", {})
     lane_vrchat = lane.meta.get("vrchat", None)
     display_timezones = resolve_display_timezones(lane)
 
@@ -517,6 +567,7 @@ def build_weekly_embeds(
                     display_timezones,
                     lane_vrchat=lane_vrchat,
                     reference_date=day.date(),
+                    roles=roles,
                 )
                 for occurrence in occurrences_by_day[weekday_offset]
             )
@@ -545,6 +596,7 @@ def build_occurrence_embed(
     event = occurrence.event
     localizer = Localizer(lane.meta.get("localization", None))
     levels = lane.meta.get("levels", {})
+    roles = lane.meta.get("roles", {})
     display_timezones = resolve_display_timezones(lane)
 
     if event.kind == "recharge":
@@ -562,7 +614,11 @@ def build_occurrence_embed(
     time_lines = [discord_timestamp_pair(occurrence.starts_at)]
     time_lines.extend(timezone_lines(occurrence.starts_at, display_timezones))
 
-    embed.add_field(name=localizer.label('host'), value=format_host(event, localizer), inline=False)
+    embed.add_field(
+        name=localizer.label('host'),
+        value=format_host(event, localizer, roles),
+        inline=False,
+    )
     embed.add_field(
         name=f"{clock_emoji(occurrence.starts_at)} {occurrence.starts_at:%Y-%m-%d}",
         value="\n".join(time_lines),
@@ -577,7 +633,7 @@ def build_occurrence_embed(
     environment_text = format_environment(event, localizer)
 
     if environment_text:
-        embed.add_field(name="VR", value=environment_text, inline=True)
+        embed.add_field(name=localizer.label('equipment'), value=environment_text, inline=False)
 
     links = format_vrchat_links(resolve_vrchat(event, lane.meta.get("vrchat", None)), localizer)
 

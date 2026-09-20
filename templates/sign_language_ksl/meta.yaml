@@ -28,44 +28,69 @@ localization:
 # comparing timezones at a glance - hence Korea first, then the regions KSL draws from.
 display_timezones:
   - { flag: KR, timezone: Asia/Seoul }
+  - { flag: JP, timezone: Asia/Tokyo }
   - { flag: US, timezone: America/Los_Angeles }
   - { flag: US, timezone: America/New_York }
   - { flag: EU, timezone: Europe/Paris }
   - { flag: AU, timezone: Australia/Sydney }
   - { flag: "🌐", timezone: UTC, label: UTC }
 
-# The KSL difficulty ladder. Referenced from events.yaml by key.
+# 학급 체계 / Class system.
+# 수업은 이 세 반 중 하나에 속합니다. events.yaml 에서는 키로만 참조하므로, 이름을 고치면
+# 모든 수업에 한 번에 반영됩니다. 수업이 아닌 모임(문화 교류회 등)은 level 을 생략합니다.
 levels:
   seed:
-    emoji: "🌰"
+    emoji: "🌱"
     order: 1
     names:
-      ko: 씨앗 (입문)
-      en: Seed (Introductory)
-  root:
-    emoji: "🌱"
+      ko: 씨앗반 - 입문
+      en: Seed Class - Introductory
+  starlight:
+    emoji: "⭐"
     order: 2
     names:
-      ko: 뿌리 (초급)
-      en: Root (Beginner)
-  stem:
-    emoji: "🎋"
+      ko: 별빛반 - 단어
+      en: Starlight Class - Vocabulary
+  moonlight:
+    emoji: "🌙"
     order: 3
     names:
-      ko: 줄기 (중급)
-      en: Stem (Intermediate)
-  cotyledon:
-    emoji: "🍀"
+      ko: 달빛반 - 문장
+      en: Moonlight Class - Sentences
+
+# 운영진 직책 / Host titles.
+# 진행자 이름 옆 괄호 안에 표시됩니다. events.yaml 의 role 은 이 키를 사용합니다.
+roles:
+  principal:
+    emoji: "👑"
+    order: 1
+    names:
+      ko: 교장선생님
+      en: Principal
+  homeroom_teacher:
+    emoji: "🏫"
+    order: 2
+    names:
+      ko: 담임선생님
+      en: Homeroom Teacher
+  student_council_president:
+    emoji: "🎗️"
+    order: 3
+    names:
+      ko: 학생회장
+      en: Student Council President
+  appreciation_head:
+    emoji: "🎬"
     order: 4
     names:
-      ko: 떡잎 (고급)
-      en: Cotyledon (Advanced)
-  sprout:
-    emoji: "🌿"
+      ko: 감상부장
+      en: Appreciation Dept Head
+  exploration_head:
+    emoji: "🧭"
     order: 5
     names:
-      ko: 새싹 (자유 소통)
-      en: Sprout (Free conversation)
+      ko: 탐험부장
+      en: Exploration Dept Head
 
 webhook:
   channel: schedule

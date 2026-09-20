@@ -44,7 +44,8 @@ def make_event(**overrides) -> EventLaneEvent:
         interval=7,
         lane_name="sign_language_ksl",
         title={"ko": "별빛반 (단어)", "en": "Starlight Class (Vocabulary)"},
-        level="root",
+        level="starlight",
+        role="homeroom_teacher",
         platforms=("pcvr", "quest"),
         hand_tracking="recommended",
     )
@@ -58,7 +59,15 @@ def make_lane(events=None, closures=None, **meta_overrides) -> EventLane:
         "channels": {"schedule": 1276966404301652081},
         "default_timezone": "Asia/Seoul",
         "localization": {"primary": "ko", "secondary": "en"},
-        "levels": {"root": {"emoji": "🌱", "names": {"ko": "뿌리 (초급)", "en": "Root (Beginner)"}}},
+        "levels": {
+            "seed":      {"emoji": "🌱", "order": 1, "names": {"ko": "씨앗반 - 입문", "en": "Seed Class - Introductory"}},
+            "starlight": {"emoji": "⭐", "order": 2, "names": {"ko": "별빛반 - 단어", "en": "Starlight Class - Vocabulary"}},
+            "moonlight": {"emoji": "🌙", "order": 3, "names": {"ko": "달빛반 - 문장", "en": "Moonlight Class - Sentences"}},
+        },
+        "roles": {
+            "principal":        {"emoji": "👑", "names": {"ko": "교장선생님", "en": "Principal"}},
+            "homeroom_teacher": {"emoji": "🏫", "names": {"ko": "담임선생님", "en": "Homeroom Teacher"}},
+        },
     }
     meta.update(meta_overrides)
 
@@ -291,8 +300,8 @@ def test_event_block_carries_dynamic_timestamps_and_explicit_zones():
     assert "11:00 AM UTC" in description
     # Bilingual title, level and environment all present.
     assert "별빛반 (단어) · Starlight Class (Vocabulary)" in description
-    assert "뿌리 (초급) · Root (Beginner)" in description
-    assert "PCVR" in description and "Quest" in description
+    assert "⭐ [별빛반 - 단어 · Starlight Class - Vocabulary]" in description
+    assert "PCVR" in description and "Quest Standalone" in description
 
 
 def test_lane_without_new_fields_renders_as_before():
@@ -354,7 +363,109 @@ def test_occurrence_embed_has_one_field_per_attribute():
 
     assert embed.title == "별빛반 (단어) · Starlight Class (Vocabulary)"
     assert any("진행자" in name for name in names), names
-    assert any("난이도" in name for name in names), names
+    assert any("학급" in name for name in names), names
+    assert any("장비" in name for name in names), names
+
+
+def test_class_and_equipment_are_on_separate_lines():
+    """
+    The two belong to different questions - "which class is this?" and "what do I need
+    to join?" - and packing them onto one line ran past the width of a phone embed.
+    """
+    lane = make_lane()
+    description = embeds.build_weekly_embeds(
+        lane, [lane], now=datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST),
+    )[2].description
+
+    class_lines = [line for line in description.splitlines() if "[별빛반" in line]
+    equipment_lines = [line for line in description.splitlines() if "PCVR" in line]
+
+    assert len(class_lines) == 1, class_lines
+    assert len(equipment_lines) == 1, equipment_lines
+    assert class_lines[0] != equipment_lines[0], "class and equipment must not share a line"
+    assert "PCVR" not in class_lines[0]
+
+
+def test_equipment_options_are_pipe_separated():
+    lane = make_lane()
+    event = make_event(platforms=("pcvr", "quest", "desktop"), hand_tracking="supported")
+
+    line = embeds.format_environment(event, embeds.Localizer(lane.meta["localization"]))
+
+    assert line.startswith("🖥️ PCVR | 🥽 Quest Standalone | 💻 Desktop | 🖐️"), line
+
+
+def test_the_three_ksl_classes_render_with_their_own_icons():
+    lane = make_lane()
+    localizer = embeds.Localizer(lane.meta["localization"])
+    levels = lane.meta["levels"]
+
+    assert embeds.format_level("seed", levels, localizer).startswith("🌱 [씨앗반 - 입문")
+    assert embeds.format_level("starlight", levels, localizer).startswith("⭐ [별빛반 - 단어")
+    assert embeds.format_level("moonlight", levels, localizer).startswith("🌙 [달빛반 - 문장")
+    assert embeds.format_level(None, levels, localizer) is None
+
+
+def test_host_titles_resolve_from_the_lane_roles_block():
+    lane = make_lane()
+    localizer = embeds.Localizer(lane.meta["localization"])
+    roles = lane.meta["roles"]
+
+    assert embeds.resolve_role("principal", roles, localizer) == "👑 교장선생님 · Principal"
+    # An inline mapping still works, for a guest who holds no standing title.
+    assert embeds.resolve_role({"ko": "초청 강사"}, roles, localizer) == "초청 강사"
+    assert embeds.resolve_role(None, roles, localizer) is None
+
+
+def test_an_unknown_class_or_title_is_shown_rather_than_dropped():
+    lane = make_lane()
+    localizer = embeds.Localizer(lane.meta["localization"])
+
+    # A typo in a key must be visible in the schedule, not silently omitted.
+    assert embeds.format_level("typo", lane.meta["levels"], localizer) == "[typo]"
+    assert embeds.resolve_role("typo", lane.meta["roles"], localizer) == "typo"
+
+
+def test_a_session_without_a_class_shows_no_class_line():
+    lane = make_lane(events=[make_event(level=None, kind="social")])
+    description = embeds.build_weekly_embeds(
+        lane, [lane], now=datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST),
+    )[2].description
+
+    assert "[" not in description.split("**")[-1] or "별빛반 -" not in description
+    assert "PCVR" in description, "equipment should still be listed"
+
+
+def test_the_ksl_lane_publishes_japan_time():
+    lanes = loader.load_event_lanes(resolve_webhooks=False)
+    ksl = loader.find_lane(lanes, "sign_language_ksl")
+
+    zones = [str(zone.timezone) for zone in embeds.resolve_display_timezones(ksl)]
+
+    assert "Asia/Tokyo" in zones, zones
+
+    built = embeds.build_weekly_embeds(ksl, lanes)
+    blob = "\n".join(embed.description for embed in built)
+
+    assert "JST" in blob
+
+
+def test_the_ksl_lane_uses_only_the_three_official_classes():
+    lanes = loader.load_event_lanes(resolve_webhooks=False)
+    ksl = loader.find_lane(lanes, "sign_language_ksl")
+
+    assert set(ksl.meta["levels"]) == {"seed", "starlight", "moonlight"}
+    assert set(ksl.meta["roles"]) == {
+        "principal", "homeroom_teacher", "student_council_president",
+        "appreciation_head", "exploration_head",
+    }
+
+    # Every class references a real class id, and every title a real role id.
+    for event in ksl.events:
+        if event.level:
+            assert event.level in ksl.meta["levels"], (event.name, event.level)
+        if isinstance(event.role, str) and event.role:
+            assert event.role in ksl.meta["roles"], (event.name, event.role)
 
 
 # --- Identity ------------------------------------------------------------------------------

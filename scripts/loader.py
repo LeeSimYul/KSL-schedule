@@ -119,7 +119,7 @@ def parse_event(
         title=raw_event.get('title', {}),
         description=raw_event.get('description', {}),
         level=raw_event.get('level', None),
-        role=raw_event.get('role', {}),
+        role=raw_event.get('role', ''),
         platforms=tuple(raw_event.get('platforms', ())),
         hand_tracking=raw_event.get('hand_tracking', None),
         vrchat=raw_event.get('vrchat', {}),

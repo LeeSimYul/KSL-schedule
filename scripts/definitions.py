@@ -66,7 +66,15 @@ class EventLaneLocalization(typing.TypedDict):
 
 
 class EventLaneLevel(typing.TypedDict):
-    """A difficulty tier - 씨앗/뿌리/줄기/떡잎/새싹 for KSL."""
+    """A class a session belongs to - 씨앗반 / 별빛반 / 달빛반 for KSL."""
+
+    emoji: typing.NotRequired[str]
+    names: LocalizedText
+    order: typing.NotRequired[int]
+
+
+class EventLaneRole(typing.TypedDict):
+    """An official host title - 교장선생님, 담임선생님, 학생회장 and so on."""
 
     emoji: typing.NotRequired[str]
     names: LocalizedText
@@ -102,6 +110,7 @@ class EventLaneMeta(typing.TypedDict):
     display_timezones: typing.NotRequired[list[EventLaneDisplayTimezone]]
     localization: typing.NotRequired[EventLaneLocalization]
     levels: typing.NotRequired[dict[str, EventLaneLevel]]
+    roles: typing.NotRequired[dict[str, EventLaneRole]]
     vrchat: typing.NotRequired[EventLaneVRChatInfo]
     discord_events: typing.NotRequired[EventLaneDiscordEventsInfo]
     #: Offer RSVP / reminder buttons for this lane (needs the bot - see docs/KSL_GUIDE.md).
@@ -128,7 +137,8 @@ class EventLaneRawEvent(typing.TypedDict):
     title: typing.NotRequired[LocalizedText]
     description: typing.NotRequired[LocalizedText]
     level: typing.NotRequired[str]
-    role: typing.NotRequired[LocalizedText]
+    #: A key into the lane's ``roles`` block, or inline text for a one-off guest.
+    role: typing.NotRequired[str | LocalizedText]
     platforms: typing.NotRequired[list[Platform]]
     hand_tracking: typing.NotRequired[HandTracking]
     vrchat: typing.NotRequired[EventLaneVRChatInfo]
@@ -179,7 +189,7 @@ class EventLaneEvent:
     title: LocalizedText = dataclasses.field(default_factory=dict)
     description: LocalizedText = dataclasses.field(default_factory=dict)
     level: str | None = None
-    role: LocalizedText = dataclasses.field(default_factory=dict)
+    role: str | LocalizedText = ""
     platforms: tuple[Platform, ...] = ()
     hand_tracking: HandTracking | None = None
     vrchat: EventLaneVRChatInfo = dataclasses.field(default_factory=dict)

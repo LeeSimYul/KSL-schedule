@@ -148,17 +148,17 @@
         },
         "levels": {
             "type": "object",
-            "description": "Difficulty tiers available to this lane's events, keyed by the id used in events.yaml.",
+            "description": "The classes this lane teaches, keyed by the id used in events.yaml. For KSL these are 씨앗반 / 별빛반 / 달빛반.",
             "additionalProperties": {
                 "type": "object",
                 "properties": {
                     "emoji": {
                         "type": "string",
-                        "description": "Icon shown next to the tier name."
+                        "description": "Icon shown before the class name, e.g. 🌱 ⭐ 🌙."
                     },
                     "names": {
                         "type": "object",
-                        "description": "The tier's name in each language.",
+                        "description": "The class name in each language, e.g. '씨앗반 - 입문'. Rendered inside brackets.",
                         "patternProperties": {
                             "^[a-z]{2}$": {
                                 "type": "string"
@@ -238,6 +238,37 @@
         "interactions": {
             "type": "boolean",
             "description": "Attach RSVP / reminder buttons to this lane's schedule. Requires the bot (scripts/bot/) - the GitHub Actions webhook build cannot send interactive buttons."
+        },
+        "roles": {
+            "type": "object",
+            "description": "The official host titles for this lane, keyed by the id used in events.yaml. Defining them here means renaming a title is one edit rather than one per class.",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "emoji": {
+                        "type": "string",
+                        "description": "Icon shown before the title, e.g. 👑 🏫 🎗️."
+                    },
+                    "names": {
+                        "type": "object",
+                        "description": "The title in each language, e.g. '담임선생님'.",
+                        "patternProperties": {
+                            "^[a-z]{2}$": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "order": {
+                        "type": "number",
+                        "description": "Sort hint for documentation purposes."
+                    }
+                },
+                "required": [
+                    "names"
+                ],
+                "additionalProperties": false
+            }
         }
     },
     "required": [

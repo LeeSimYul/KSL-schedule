@@ -36,8 +36,8 @@ localization:
       ko: 진행자
       en: Host
     level:
-      ko: 난이도
-      en: Level
+      ko: 학급
+      en: Class
     no_events:
       ko: 이 날은 수업이 없습니다.
       en: No classes this day.
@@ -54,19 +54,29 @@ localization:
 # CET/CEST switch over correctly on their own.
 display_timezones:
   - { flag: KR, timezone: Asia/Seoul }
+  - { flag: JP, timezone: Asia/Tokyo }
   - { flag: US, timezone: America/Los_Angeles }
   - { flag: US, timezone: America/New_York }
   - { flag: EU, timezone: Europe/Paris }
   - { flag: AU, timezone: Australia/Sydney }
   - { flag: "🌐", timezone: UTC, label: UTC }
 
-# --- Difficulty ladder --------------------------------------------------------------
+# --- 학급 체계 / Class system --------------------------------------------------------
+# 수업은 이 세 반 중 하나에 속합니다. 'names' 는 임베드에서 대괄호 안에 표시됩니다:
+#   🌱 [씨앗반 - 입문]   ⭐ [별빛반 - 단어]   🌙 [달빛반 - 문장]
 levels:
-  seed:      { emoji: "🌰", order: 1, names: { ko: 씨앗 (입문),      en: Seed (Introductory) } }
-  root:      { emoji: "🌱", order: 2, names: { ko: 뿌리 (초급),      en: Root (Beginner) } }
-  stem:      { emoji: "🎋", order: 3, names: { ko: 줄기 (중급),      en: Stem (Intermediate) } }
-  cotyledon: { emoji: "🍀", order: 4, names: { ko: 떡잎 (고급),      en: Cotyledon (Advanced) } }
-  sprout:    { emoji: "🌿", order: 5, names: { ko: 새싹 (자유 소통), en: Sprout (Free conversation) } }
+  seed:      { emoji: "🌱", order: 1, names: { ko: 씨앗반 - 입문, en: Seed Class - Introductory } }
+  starlight: { emoji: "⭐", order: 2, names: { ko: 별빛반 - 단어, en: Starlight Class - Vocabulary } }
+  moonlight: { emoji: "🌙", order: 3, names: { ko: 달빛반 - 문장, en: Moonlight Class - Sentences } }
+
+# --- 운영진 직책 / Host titles ---------------------------------------------------------
+# 진행자 이름 옆 괄호 안에 표시됩니다: Korea_Yujin (🏫 담임선생님 · Homeroom Teacher)
+roles:
+  principal:                 { emoji: "👑", order: 1, names: { ko: 교장선생님, en: Principal } }
+  homeroom_teacher:          { emoji: "🏫", order: 2, names: { ko: 담임선생님, en: Homeroom Teacher } }
+  student_council_president: { emoji: "🎗️", order: 3, names: { ko: 학생회장,   en: Student Council President } }
+  appreciation_head:         { emoji: "🎬", order: 4, names: { ko: 감상부장,   en: Appreciation Dept Head } }
+  exploration_head:          { emoji: "🧭", order: 5, names: { ko: 탐험부장,   en: Exploration Dept Head } }
 
 # --- VRChat ---------------------------------------------------------------------------
 # Lane-wide defaults. Any event may override any of these individually.

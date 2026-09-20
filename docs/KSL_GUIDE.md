@@ -59,6 +59,7 @@ RSVP buttons, reminder DMs and Discord Scheduled Events sync.
 ```yaml
 display_timezones:
   - { flag: KR, timezone: Asia/Seoul }
+  - { flag: JP, timezone: Asia/Tokyo }
   - { flag: US, timezone: America/Los_Angeles }
   - { flag: US, timezone: America/New_York }
   - { flag: EU, timezone: Europe/Paris }
@@ -125,10 +126,8 @@ strings.timezones; // ['🇰🇷  08:00 PM KST', ...]
   name: "KSL 별빛반"          # 기존 필드 - 번역이 없을 때의 대체 이름
   tags: ["class", "vocabulary"]
   kind: class                 # class | event | social | recharge
-  level: root                 # meta.yaml의 levels 키
-  role:                       # 진행자 구분
-    ko: 담임
-    en: Teacher
+  level: starlight            # meta.yaml의 levels 키 (seed / starlight / moonlight)
+  role: homeroom_teacher      # meta.yaml의 roles 키
   platforms: ["pcvr", "quest"]      # 권장/필수 VR 환경
   hand_tracking: recommended        # required | recommended | supported | unsupported
   vrchat:
@@ -141,19 +140,53 @@ strings.timezones; // ['🇰🇷  08:00 PM KST', ...]
     duration: 90              # 분 단위. 알림·디스코드 이벤트에 사용
 ```
 
-### 난이도 / Levels
+### 학급 체계 / Class system
 
-난이도는 `meta.yaml` 에서 한 번 정의하고 이벤트에서는 키로만 참조합니다. 이름을 고치면
-모든 수업에 한 번에 반영됩니다.
+수업은 아래 세 반 중 하나에 속합니다. `meta.yaml` 에서 한 번 정의하고 이벤트에서는 키로만
+참조하므로, 이름을 고치면 모든 수업에 한 번에 반영됩니다.
 
 ```yaml
 levels:
-  seed:      { emoji: "🌰", order: 1, names: { ko: 씨앗 (입문),      en: Seed (Introductory) } }
-  root:      { emoji: "🌱", order: 2, names: { ko: 뿌리 (초급),      en: Root (Beginner) } }
-  stem:      { emoji: "🎋", order: 3, names: { ko: 줄기 (중급),      en: Stem (Intermediate) } }
-  cotyledon: { emoji: "🍀", order: 4, names: { ko: 떡잎 (고급),      en: Cotyledon (Advanced) } }
-  sprout:    { emoji: "🌿", order: 5, names: { ko: 새싹 (자유 소통), en: Sprout (Free conversation) } }
+  seed:      { emoji: "🌱", order: 1, names: { ko: 씨앗반 - 입문, en: Seed Class - Introductory } }
+  starlight: { emoji: "⭐", order: 2, names: { ko: 별빛반 - 단어, en: Starlight Class - Vocabulary } }
+  moonlight: { emoji: "🌙", order: 3, names: { ko: 달빛반 - 문장, en: Moonlight Class - Sentences } }
 ```
+
+임베드에는 대괄호 안에 표시됩니다: `⭐ [별빛반 - 단어 · Starlight Class - Vocabulary]`
+
+수업이 아닌 모임은 `level` 을 **생략**하면 학급 라인이 나타나지 않습니다.
+
+### 운영진 직책 / Host titles
+
+진행자 이름 옆 괄호 안에 표시됩니다. `events.yaml` 의 `role` 에 키를 적습니다.
+
+```yaml
+roles:
+  principal:                 { emoji: "👑", names: { ko: 교장선생님, en: Principal } }
+  homeroom_teacher:          { emoji: "🏫", names: { ko: 담임선생님, en: Homeroom Teacher } }
+  student_council_president: { emoji: "🎗️", names: { ko: 학생회장,   en: Student Council President } }
+  appreciation_head:         { emoji: "🎬", names: { ko: 감상부장,   en: Appreciation Dept Head } }
+  exploration_head:          { emoji: "🧭", names: { ko: 탐험부장,   en: Exploration Dept Head } }
+```
+
+→ `진행자 · Host: Korea_Yujin (🏫 담임선생님 · Homeroom Teacher)`
+
+정규 직책이 없는 초청 진행자라면 키 대신 인라인으로 적을 수 있습니다.
+
+```yaml
+    role: { ko: 초청 강사, en: Guest Instructor }
+```
+
+### 장비 표기 / Equipment
+
+학급과 **별도 줄**에 표시됩니다.
+
+```yaml
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: recommended     # required | recommended | supported | unsupported
+```
+
+→ `🖥️ PCVR | 🥽 Quest Standalone | 💻 Desktop | 🖐️ 핸드트래킹 권장 · hand tracking recommended`
 
 ### VRChat 접속 정보 / Joining
 
@@ -188,7 +221,7 @@ localization:
 - 한쪽 언어 번역이 없으면 **키가 아니라 있는 쪽 언어가** 표시됩니다. 번역이 반쯤 된 상태도
   깨지지 않습니다.
 - 두 언어가 같은 문자열이면 한 번만 표시됩니다 (`PCVR · PCVR` 방지).
-- 임베드 자체의 문구("진행자", "난이도" 등)는 기본 제공되며, 필요하면
+- 임베드 자체의 문구("진행자", "학급" 등)는 기본 제공되며, 필요하면
   `localization.labels` 로 덮어쓸 수 있습니다.
 
 ```yaml
