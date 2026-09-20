@@ -5,7 +5,7 @@
 메시지를 보고 같은 시각을 이해할 수 있게 합니다.
 
 > 이 프로젝트는 [HelpingHandsVR/schedule](https://github.com/HelpingHandsVR/schedule)의
-> 코드를 기반으로 출발했습니다. 훌륭한 토대를 공개해 주신 원저작자 **Devon** 님과 Helping
+> 코드를 기반으로 출발했습니다. 훌륭한 토대를 공개해 주신 원저작자 **scarletcafe(devon)** 님과 Helping
 > Hands 커뮤니티에 깊이 감사드립니다.
 >
 > This project is built on [HelpingHandsVR/schedule](https://github.com/HelpingHandsVR/schedule)
@@ -204,7 +204,7 @@ python scripts/tests/test_ksl.py
 > 허용하지 않습니다. 따라서 **이 저장소는 아직 자체 LICENSE 파일을 추가하지 않았습니다** —
 > 원저작자만이 기반 코드의 라이선스를 정할 수 있기 때문입니다.
 >
-> 독립 저장소로 공개 운영하기 전에 원저작자(Devon)에게 연락하여 (1) 원본에 라이선스를
+> 독립 저장소로 공개 운영하기 전에 원저작자(scarletcafe(devon))에게 연락하여 (1) 원본에 라이선스를
 > 추가해 달라고 요청하거나, (2) 이 저장소에 대한 명시적 사용 허락을 받으시기를 권합니다.
 > 절차는 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) 4-4 절에 정리되어 있습니다.
 
