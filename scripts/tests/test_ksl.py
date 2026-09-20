@@ -708,6 +708,90 @@ def test_a_broken_template_at_startup_is_fatal():
     raise AssertionError("Expected a startup reload with no fallback to raise")
 
 
+# --- Template syntax errors ---------------------------------------------------------------------
+
+def broken_template(body: str) -> pathlib.Path:
+    folder = pathlib.Path(tempfile.mkdtemp())
+    path = folder / "events.yaml"
+    path.write_text(body, encoding="utf-8")
+
+    return path
+
+
+def read_broken(body: str) -> str:
+    """Read a deliberately broken template and return the error text."""
+    from loader import TemplateError, read_yaml
+
+    try:
+        read_yaml(broken_template(body))
+    except TemplateError as error:
+        return str(error)
+
+    raise AssertionError("Expected the template to be rejected")
+
+
+def test_a_character_glued_onto_a_key_is_reported_against_the_right_line():
+    """
+    The real failure this came from: two box-drawing characters pasted onto `events:`.
+
+    PyYAML blames the following line and says "did not find expected <document start>",
+    which names neither the line to edit nor anything a schedule editor can act on.
+    """
+    message = read_broken(
+        "events:\u2500\u2500\n"
+        "  # \uc218\uc5c5\n"
+        "  - host: Korea_Yujin\n"
+        "    name: KSL\n"
+    )
+
+    assert "events.yaml:" in message
+    # The hint has to name line 1, not line 3 where parsing gave up.
+    assert "Line 1: no space after the colon" in message, message
+    assert "events:\u2500\u2500" in message
+
+
+def test_a_tab_indent_is_named_as_such():
+    message = read_broken("events:\n\t- host: A\n")
+
+    assert "Line 2 is indented with a tab" in message, message
+
+
+def test_an_unclosed_quote_is_named_as_such():
+    message = read_broken('events:\n  - host: "Korea_Yujin\n    name: B\n')
+
+    assert "Line 2 has an unclosed quote" in message, message
+
+
+def test_a_missing_space_inside_a_list_item_is_found():
+    message = read_broken("events:\n  - host:Korea_Yujin\n    name: B\n")
+
+    assert "Line 2: no space after the colon" in message, message
+
+
+def test_the_error_report_shows_the_offending_line_with_a_caret():
+    message = read_broken("events:\n\t- host: A\n")
+    lines = message.splitlines()
+
+    assert any(line.strip().startswith("2 |") for line in lines), message
+    assert any(line.strip().startswith("| ") and "^" in line for line in lines), message
+
+
+def test_valid_templates_produce_no_false_hint():
+    """Colons inside URLs and Korean text must not be mistaken for a missing space."""
+    from loader import read_yaml
+
+    data = read_yaml(broken_template(
+        "events:\n"
+        "  - host: Korea_Yujin\n"
+        "    vrchat:\n"
+        "      instance_url: https://vrchat.com/i/abc\n"
+        "    title:\n"
+        "      ko: \ubcc4\ube5b\ubc18 (\ub2e8\uc5b4)\n"
+    ))
+
+    assert data["events"][0]["vrchat"]["instance_url"] == "https://vrchat.com/i/abc"
+
+
 # --- GitHub Actions annotations -------------------------------------------------------------------
 
 def test_annotations_always_open_a_new_line():
@@ -739,7 +823,15 @@ def test_the_real_build_emits_only_well_formed_annotations():
 
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_FOLDER / "build_manifests.py"), "--no-send"],
-        capture_output=True, text=True, cwd=str(SCRIPTS_FOLDER.parent), check=True,
+        capture_output=True, text=True, cwd=str(SCRIPTS_FOLDER.parent),
+    )
+
+    # Without this the failure surfaces as a bare CalledProcessError, which says nothing
+    # about what the build actually objected to.
+    assert result.returncode == 0, (
+        f"build_manifests.py exited {result.returncode}\n"
+        f"--- stdout ---\n{result.stdout[-2000:]}\n"
+        f"--- stderr ---\n{result.stderr[-2000:]}"
     )
 
     misplaced = [

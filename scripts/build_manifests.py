@@ -14,7 +14,7 @@ from ci import annotate
 from embeds import build_weekly_embeds, enforce_embed_limits
 from formats.old import generate_old_format
 from formats.webhook import send_webhooks
-from loader import OUTPUT_FOLDER, load_event_lanes
+from loader import OUTPUT_FOLDER, TemplateError, load_event_lanes
 
 
 class ClickReporter:
@@ -79,7 +79,18 @@ def generate_preview(event_lanes) -> dict:
 def main(preview: bool, send: bool):
     click.secho("Reading event lane templates...", fg='blue')
 
-    event_lanes = load_event_lanes(reporter=ClickReporter())
+    try:
+        event_lanes = load_event_lanes(reporter=ClickReporter())
+    except TemplateError as error:
+        # A syntax error in a template is the schedule author's to fix, not a crash to
+        # debug, so it is reported on its own rather than under a Python traceback.
+        message = str(error)
+        # GitHub reads a workflow command up to the first newline, so the summary line
+        # becomes the annotation and the detail follows underneath it in the log.
+        annotate('error', message.splitlines()[0])
+        click.secho(message, fg='red')
+
+        raise SystemExit(1) from None
 
     # (callback, filename, ensure_ascii). The published manifests keep their original
     # ASCII-escaped encoding so existing consumers see no change; the preview is written
