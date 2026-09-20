@@ -10,6 +10,7 @@ import typing
 
 import click
 
+from ci import annotate
 from embeds import build_weekly_embeds, enforce_embed_limits
 from formats.old import generate_old_format
 from formats.webhook import send_webhooks
@@ -34,7 +35,9 @@ class ClickReporter:
         click.secho(message)
 
     def warn(self, message: str) -> None:
-        click.secho(message, fg='yellow')
+        # A workflow command, so missing secrets reach the annotations panel rather than
+        # only the expanded log.
+        annotate('warning', message)
 
 
 def generate_preview(event_lanes) -> dict:
@@ -51,7 +54,7 @@ def generate_preview(event_lanes) -> dict:
         warnings = enforce_embed_limits(embeds)
 
         for warning in warnings:
-            click.secho(f"    Warning ({event_lane.name}): {warning}", fg='yellow')
+            annotate('warning', f"[{event_lane.name}] {warning}")
 
         preview[event_lane.name] = {
             "characters": sum(len(embed) for embed in embeds),

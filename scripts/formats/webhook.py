@@ -15,9 +15,9 @@ build is a cron job that exits. The RSVP and reminder buttons therefore live in 
 
 import typing
 
-import click
 import discord
 
+from ci import annotate as emit_annotation
 from definitions import EventLane
 from embeds import Localizer, build_weekly_embeds, enforce_embed_limits
 
@@ -60,13 +60,8 @@ def build_link_buttons(event_lane: EventLane) -> discord.ui.View | None:
 
 
 def annotate(level: str, lane_name: str, message: str) -> None:
-    """
-    Report a problem so it is visible both locally and in the Actions run summary.
-
-    ``::error::`` / ``::warning::`` are GitHub Actions workflow commands - they surface
-    the line in the run's annotations instead of it scrolling past inside a log.
-    """
-    click.secho(f"::{level}::[{lane_name}] {message}", fg='red' if level == 'error' else 'yellow')
+    """Report a lane-scoped problem into the Actions run's annotations panel."""
+    emit_annotation(level, f"[{lane_name}] {message}")
 
 
 def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
@@ -102,9 +97,16 @@ def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
 
     message = event_lane.webhook.send(embeds=weekday_embeds, wait=True, **extra)
 
-    click.secho(
-        f"    [{event_lane.name}] posted new schedule message: {message.id}",
-        fg='green',
+    # Posting is a one-off: every later run should edit this message instead of adding
+    # another one. That only happens once the ID is stored, so the ID is raised as an
+    # annotation - naming the exact secret - rather than logged where it would be missed.
+    secret_name = (event_lane.webhook_info or {}).get('message_id', '<message id secret>')
+
+    annotate(
+        'notice', event_lane.name,
+        f"Posted a NEW schedule message: {message.id} - "
+        f"set the secret {secret_name}={message.id} so future runs edit it instead of "
+        f"posting another copy.",
     )
 
     return message.id

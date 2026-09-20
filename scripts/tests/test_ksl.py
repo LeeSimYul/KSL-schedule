@@ -597,6 +597,49 @@ def test_a_broken_template_at_startup_is_fatal():
     raise AssertionError("Expected a startup reload with no fallback to raise")
 
 
+# --- GitHub Actions annotations -------------------------------------------------------------------
+
+def test_annotations_always_open_a_new_line():
+    """
+    GitHub only parses a workflow command at the start of a line.
+
+    The build prints progress with the cursor left mid-line ("Parsing meta schema... "),
+    so an annotation emitted without a leading newline silently degrades into ordinary
+    log text - it still reads fine locally, which is exactly what makes it easy to miss.
+    """
+    import io
+    import contextlib
+    import ci
+
+    captured = io.StringIO()
+
+    with contextlib.redirect_stdout(captured):
+        print("  Doing something... ", end="")
+        ci.annotate("warning", "something to notice")
+        print("OK")
+
+    lines = captured.getvalue().splitlines()
+
+    assert any(line.startswith("::warning::") for line in lines), lines
+
+
+def test_the_real_build_emits_only_well_formed_annotations():
+    import subprocess
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS_FOLDER / "build_manifests.py"), "--no-send"],
+        capture_output=True, text=True, cwd=str(SCRIPTS_FOLDER.parent), check=True,
+    )
+
+    misplaced = [
+        line for line in result.stdout.splitlines()
+        if ("::warning::" in line or "::error::" in line or "::notice::" in line)
+        and not line.startswith("::")
+    ]
+
+    assert not misplaced, misplaced
+
+
 # --- Python / JavaScript parity -------------------------------------------------------------------
 
 def test_javascript_helper_matches_the_python_one():

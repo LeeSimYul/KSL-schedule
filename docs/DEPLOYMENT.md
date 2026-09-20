@@ -56,17 +56,57 @@ Warning: no webhook URL found for sign_language_asl
 
 ### 1-4. `MESSAGE_ID` 채우는 순서
 
-1. `KSL_SCHEDULE_WEBHOOK_URL` 만 등록하고 워크플로를 한 번 실행합니다
-   (`Actions` → `Build schedule manifests` → `Run workflow`).
-2. 로그에 새 메시지 ID가 찍힙니다.
-   ```
-   [sign_language_ksl] posted new schedule message: 1234567890123456789
-   ```
-3. 그 숫자를 `KSL_SCHEDULE_MESSAGE_ID` 시크릿으로 등록합니다.
-4. 이후 실행부터는 **새 메시지를 만들지 않고 기존 메시지를 수정**합니다.
+`KSL_SCHEDULE_MESSAGE_ID` 가 비어 있으면 **실행할 때마다 새 메시지가 하나씩 생깁니다.**
+1회차 실행 후 바로 채워 넣는 것이 좋습니다.
 
-메시지를 누군가 삭제하면 빌드가 실패하는 대신 새로 게시하고 새 ID를 로그에 남깁니다.
-그때 시크릿만 갱신하면 됩니다.
+#### 방법 A — Actions 로그에서 (2회차부터 권장)
+
+빌드가 새 메시지를 게시하면 `Annotations` 패널에 ID가 그대로 뜹니다.
+
+```
+::notice::[sign_language_ksl] Posted a NEW schedule message: 1420983112345678901 -
+set the secret KSL_SCHEDULE_MESSAGE_ID=1420983112345678901 so future runs edit it
+instead of posting another copy.
+```
+
+#### 방법 B — 디스코드에서 직접 복사 (이미 게시된 메시지)
+
+로그를 놓쳤거나 이전 버전으로 게시된 메시지라면 디스코드에서 직접 가져옵니다.
+
+1. 디스코드 `사용자 설정` → `고급` → **`개발자 모드` 켜기**
+2. `#schedule` 채널에서 시간표 메시지에 마우스를 올린 뒤 `⋯` → **`메시지 ID 복사`**
+   (모바일이라면 메시지를 길게 눌러 `ID 복사`)
+3. 18~19자리 숫자가 복사됩니다. 예: `1420983112345678901`
+
+#### 등록
+
+1. `Settings` → `Secrets and variables` → `Actions`
+2. `New repository secret`
+   - Name: `KSL_SCHEDULE_MESSAGE_ID`
+   - Secret: 복사한 숫자 **(숫자만. 따옴표·공백·`<>` 금지)**
+3. `Add secret`
+
+#### 확인
+
+`Actions` → `Build schedule manifests` → `Run workflow` 로 한 번 더 실행합니다.
+
+- ✅ **정상**: 디스코드에 새 메시지가 생기지 않고 **기존 메시지 내용이 바뀝니다.**
+  로그에 `Posted a NEW schedule message` 주석이 **뜨지 않습니다.**
+- ❌ 새 메시지가 또 생겼다면 → 시크릿 이름 철자, 숫자에 섞인 공백을 확인하세요.
+- ❌ `no existing webhook message ID found` 경고가 계속 뜬다면 → 시크릿이 저장되지
+  않았거나 이름이 다릅니다.
+
+> **웹훅은 자기가 보낸 메시지만 수정할 수 있습니다.** 사람이 올린 메시지나 다른 웹훅이
+> 올린 메시지의 ID를 넣으면 수정에 실패합니다. 반드시 **이 워크플로가 게시한 메시지**의
+> ID여야 합니다.
+>
+> 그 메시지를 누군가 삭제하더라도 빌드는 실패하지 않습니다 — 새로 게시하고 새 ID를
+> 주석으로 알려 주므로, 시크릿만 갱신하면 됩니다.
+
+#### 중복 메시지 정리
+
+시크릿을 넣기 전에 여러 번 실행해서 메시지가 여러 개 쌓였다면, **가장 최근 것 하나만
+남기고** 나머지는 디스코드에서 삭제한 뒤 남긴 메시지의 ID를 등록하세요.
 
 ### 1-5. 토큰이 유출되었다면
 
