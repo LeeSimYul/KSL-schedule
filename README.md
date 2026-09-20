@@ -42,7 +42,9 @@ python scripts/tests/test_ksl.py
 
 ## 문서 / Documentation
 
-- **[docs/KSL_GUIDE.md](docs/KSL_GUIDE.md)** — 단계별 적용 가이드, 봇 배포 방법, 문제 해결
+- **[docs/KSL_GUIDE.md](docs/KSL_GUIDE.md)** — 기능별 단계 가이드, 설정 항목 설명, 문제 해결
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — GitHub Secrets, 디스코드 봇 권한/인텐트,
+  `main` 병합 절차, 원본 저장소 동기화
 - **[docs/examples/](docs/examples/)** — 모든 설정 항목이 주석과 함께 채워진 예시 파일
 
 원본 저장소 관련 문의는 Devon에게, KSL 관련 변경은 이 저장소의 이슈로 남겨 주세요.

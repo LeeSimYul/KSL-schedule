@@ -145,23 +145,38 @@ async def refresh(interaction: discord.Interaction) -> None:
 
     await interaction.response.defer(ephemeral=True, thinking=True)
 
-    # Pick up template edits that were pushed since the bot started.
-    bot.service.reload()
+    try:
+        # Pick up template edits that were pushed since the bot started. Returns False
+        # when the new templates did not parse and the previous ones are still in use.
+        reloaded = bot.service.reload()
 
-    sync_cog = bot.get_cog("ScheduledEventSync")
+        sync_cog = bot.get_cog("ScheduledEventSync")
 
-    if sync_cog is not None:
-        await sync_cog.sync_all()
+        if sync_cog is not None:
+            await sync_cog.sync_all()
 
-    poster = bot.get_cog("SchedulePoster")
+        poster = bot.get_cog("SchedulePoster")
 
-    if poster is not None:
-        await poster.refresh()
+        if poster is not None:
+            await poster.refresh()
 
-    removed = bot.storage.purge_expired(datetime.datetime.now(datetime.timezone.utc))
+        removed = bot.storage.purge_expired(datetime.datetime.now(datetime.timezone.utc))
+    except Exception as error:  # noqa: BLE001 - report to the operator, never 500 at them
+        log.exception("Manual refresh failed")
+        await interaction.followup.send(
+            f"갱신에 실패했습니다. / Refresh failed: `{error!r}`\n"
+            f"-# The previous schedule is still in place. Check the bot logs for details.",
+            ephemeral=True,
+        )
+        return
+
+    warning = "" if reloaded else (
+        "\n-# ⚠️ 템플릿을 읽지 못해 이전 시간표를 유지했습니다. / "
+        "Templates failed to parse - the previous schedule was kept."
+    )
 
     await interaction.followup.send(
-        f"시간표를 갱신했습니다. / Schedule rebuilt. ({removed} expired records pruned)",
+        f"시간표를 갱신했습니다. / Schedule rebuilt. ({removed} expired records pruned){warning}",
         ephemeral=True,
     )
 

@@ -236,6 +236,9 @@ closures:
 
 RSVP 버튼, 15분 전 알림 DM, 디스코드 이벤트 연동은 여기서부터입니다.
 
+> 시크릿 등록 위치, 인텐트 설정, 초대 권한은 **[DEPLOYMENT.md](DEPLOYMENT.md)** 에
+> 체크리스트로 정리되어 있습니다.
+
 ### 5-1. 애플리케이션 만들기
 
 1. https://discord.com/developers/applications 에서 애플리케이션 생성 → Bot 추가
@@ -248,7 +251,7 @@ RSVP 버튼, 15분 전 알림 DM, 디스코드 이벤트 연동은 여기서부�
 ### 5-2. 실행
 
 ```bash
-export KSL_BOT_TOKEN="..."            # 필수
+export DISCORD_BOT_TOKEN="..."        # 필수 (KSL_BOT_TOKEN 도 사용 가능)
 export KSL_REMINDER_LEAD_MINUTES=15   # 기본 15
 export KSL_BOT_DATABASE=./data/ksl_bot.sqlite3
 
@@ -258,7 +261,7 @@ python -m bot
 
 | 환경 변수 | 기본값 | 설명 |
 |---|---|---|
-| `KSL_BOT_TOKEN` | (필수) | 봇 토큰 |
+| `DISCORD_BOT_TOKEN` 또는 `KSL_BOT_TOKEN` | (필수) | 봇 토큰. 둘 다 있으면 `KSL_BOT_TOKEN` 우선 |
 | `KSL_BOT_DATABASE` | `data/ksl_bot.sqlite3` | RSVP·알림 저장 위치 |
 | `KSL_REMINDER_LEAD_MINUTES` | `15` | 몇 분 전에 알릴지 |
 | `KSL_REMINDER_GRACE_MINUTES` | `30` | 봇이 꺼져 있던 동안 놓친 알림을 몇 분까지 늦게 보낼지 |

@@ -24,15 +24,21 @@ class BotConfig:
     #: How often the schedule message is rebuilt, in minutes.
     refresh_interval_minutes: int = 15
 
+    #: Accepted names for the bot token, in order of preference. ``DISCORD_BOT_TOKEN`` is
+    #: the conventional name and is accepted so a host's existing secret works unchanged;
+    #: ``KSL_BOT_TOKEN`` wins when both are set, for a host running several bots.
+    TOKEN_VARIABLES = ("KSL_BOT_TOKEN", "DISCORD_BOT_TOKEN")
+
     @classmethod
     def from_environment(cls) -> "BotConfig":
-        token = os.getenv("KSL_BOT_TOKEN", "")
+        token = next((value for value in map(os.getenv, cls.TOKEN_VARIABLES) if value), "")
 
         if not token:
             raise RuntimeError(
-                "KSL_BOT_TOKEN is not set. Create an application at "
-                "https://discord.com/developers/applications, copy its bot token, and put it "
-                "in the environment before starting the bot."
+                f"No bot token found. Set one of {' or '.join(cls.TOKEN_VARIABLES)}: create an "
+                f"application at https://discord.com/developers/applications, copy its bot "
+                f"token, and put it in the environment before starting the bot. "
+                f"Never commit the token to the repository."
             )
 
         database_path = os.getenv("KSL_BOT_DATABASE", "")

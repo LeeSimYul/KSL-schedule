@@ -59,36 +59,102 @@ def build_link_buttons(event_lane: EventLane) -> discord.ui.View | None:
     return view
 
 
+def annotate(level: str, lane_name: str, message: str) -> None:
+    """
+    Report a problem so it is visible both locally and in the Actions run summary.
+
+    ``::error::`` / ``::warning::`` are GitHub Actions workflow commands - they surface
+    the line in the run's annotations instead of it scrolling past inside a log.
+    """
+    click.secho(f"::{level}::[{lane_name}] {message}", fg='red' if level == 'error' else 'yellow')
+
+
+def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
+    """
+    Render and deliver one lane's schedule, returning the message ID it now lives at.
+
+    Editing is preferred over posting so the message keeps its place, its pins and its
+    links - but a message someone deleted can never be edited again, so a 404 falls back
+    to posting a fresh one rather than failing this lane forever.
+    """
+    weekday_embeds = build_weekly_embeds(event_lane, event_lanes)
+
+    for warning in enforce_embed_limits(weekday_embeds):
+        annotate('warning', event_lane.name, warning)
+
+    view = build_link_buttons(event_lane)
+    extra: dict[str, typing.Any] = {} if view is None else {"view": view}
+
+    if event_lane.webhook_message_id:
+        try:
+            message = event_lane.webhook.edit_message(
+                message_id=event_lane.webhook_message_id,
+                embeds=weekday_embeds,
+                **extra,
+            )
+            return message.id
+        except discord.NotFound:
+            annotate(
+                'warning', event_lane.name,
+                f"Schedule message {event_lane.webhook_message_id} no longer exists - posting a new one. "
+                f"Update the message ID secret to the new value printed below.",
+            )
+
+    message = event_lane.webhook.send(embeds=weekday_embeds, wait=True, **extra)
+
+    click.secho(
+        f"    [{event_lane.name}] posted new schedule message: {message.id}",
+        fg='green',
+    )
+
+    return message.id
+
+
 def send_webhooks(event_lanes: list[EventLane]) -> dict:
+    """
+    Deliver every configured lane, in isolation from one another.
+
+    discord.py already retries rate limits (429) and server errors (5xx) internally, so
+    what reaches us here is terminal: a revoked webhook, a missing permission, or a bug in
+    one lane's data. None of those are a reason to abandon the other lanes, and none are a
+    reason to abandon the manifest either - the VRChat side reads ``old.json`` and does
+    not care whether Discord accepted the embeds. So failures are annotated loudly and the
+    build continues, unless every single lane failed, which means something systemic.
+    """
     lane_messages = {}
+    attempted = 0
+    failures: list[str] = []
 
     for event_lane in event_lanes:
         # We can't work with no webhook..
         if not event_lane.webhook:
             continue
 
-        weekday_embeds = build_weekly_embeds(event_lane, event_lanes)
+        attempted += 1
 
-        for warning in enforce_embed_limits(weekday_embeds):
-            click.secho(f"    Warning ({event_lane.name}): {warning}", fg='yellow')
-
-        view = build_link_buttons(event_lane)
-        extra: dict[str, typing.Any] = {} if view is None else {"view": view}
-
-        # If a message exists update it, otherwise post a new one.
-        if event_lane.webhook_message_id:
-            message = event_lane.webhook.edit_message(
-                message_id=event_lane.webhook_message_id,
-                embeds=weekday_embeds,
-                **extra,
+        try:
+            lane_messages[event_lane.name] = deliver_lane(event_lane, event_lanes)
+        except discord.Forbidden:
+            failures.append(event_lane.name)
+            annotate(
+                'error', event_lane.name,
+                "Discord refused the request (403). The webhook was probably deleted or "
+                "regenerated - create a new one and update this lane's URL secret.",
             )
-        else:
-            message = event_lane.webhook.send(
-                embeds=weekday_embeds,
-                wait=True,
-                **extra,
+        except discord.HTTPException as error:
+            failures.append(event_lane.name)
+            annotate(
+                'error', event_lane.name,
+                f"Discord rejected the schedule after retries (HTTP {error.status}): {error.text}",
             )
+        except Exception as error:  # noqa: BLE001 - one lane's data must not sink the rest
+            failures.append(event_lane.name)
+            annotate('error', event_lane.name, f"Could not build or deliver this schedule: {error!r}")
 
-        lane_messages[event_lane.name] = message.id
+    if attempted and len(failures) == attempted:
+        raise RuntimeError(
+            f"Every configured webhook failed ({', '.join(failures)}). "
+            f"This usually means the secrets are wrong or Discord is unreachable."
+        )
 
     return lane_messages

@@ -476,6 +476,127 @@ def test_documented_examples_load_and_render():
     assert any(embed.colour == embeds.RECHARGE_COLOUR for embed in built)
 
 
+# --- Failure handling ---------------------------------------------------------------------------
+
+class FakeWebhook:
+    """Stands in for discord.SyncWebhook, failing in whichever way a test needs."""
+
+    def __init__(self, mode="ok"):
+        self.mode = mode
+        self.sent = False
+
+    def _fail(self):
+        response = types.SimpleNamespace(status=0, reason="test")
+
+        if self.mode == "notfound":
+            response.status = 404
+            raise discord.NotFound(response, {"message": "Unknown Message"})
+        if self.mode == "forbidden":
+            response.status = 403
+            raise discord.Forbidden(response, {"message": "Missing Access"})
+        if self.mode == "http":
+            response.status = 400
+            raise discord.HTTPException(response, {"message": "Bad Request"})
+
+    def edit_message(self, **kwargs):
+        self._fail()
+        return types.SimpleNamespace(id=111)
+
+    def send(self, **kwargs):
+        self.sent = True
+        return types.SimpleNamespace(id=222)
+
+
+def make_webhook_lane(name, mode, message_id=999):
+    lane = make_lane()
+
+    return EventLane(
+        name=name, meta=lane.meta, events=lane.events,
+        webhook=FakeWebhook(mode), webhook_info={}, webhook_message_id=message_id,
+    )
+
+
+def test_one_failing_lane_does_not_stop_the_others():
+    from formats.webhook import send_webhooks
+
+    lanes = [
+        make_webhook_lane("ok_lane", "ok"),
+        make_webhook_lane("revoked", "forbidden"),
+        make_webhook_lane("api_error", "http"),
+    ]
+
+    delivered = send_webhooks(lanes)
+
+    assert set(delivered) == {"ok_lane"}, delivered
+
+
+def test_a_deleted_schedule_message_is_reposted():
+    from formats.webhook import send_webhooks
+
+    lane = make_webhook_lane("deleted", "notfound")
+    delivered = send_webhooks([lane])
+
+    assert lane.webhook.sent, "expected a fresh message to be posted after the 404"
+    assert delivered["deleted"] == 222
+
+
+def test_every_lane_failing_fails_the_build():
+    from formats.webhook import send_webhooks
+
+    try:
+        send_webhooks([make_webhook_lane("a", "forbidden"), make_webhook_lane("b", "forbidden")])
+    except RuntimeError:
+        return
+
+    raise AssertionError("Expected a RuntimeError when no lane could be delivered")
+
+
+def test_lanes_without_a_webhook_are_skipped_not_failed():
+    from formats.webhook import send_webhooks
+
+    assert send_webhooks([make_lane()]) == {}
+
+
+def test_a_broken_template_keeps_the_last_good_schedule():
+    from bot.schedule import ScheduleService
+
+    service = ScheduleService()
+    service.reload()
+    good = service.lanes
+
+    assert good, "expected the real templates to load"
+
+    broken = pathlib.Path(tempfile.mkdtemp()) / "sign_language_ksl"
+    broken.mkdir(parents=True)
+    (broken / "meta.yaml").write_text("channels: {}\ndefault_timezone: [not a string\n", encoding="utf-8")
+    (broken / "events.yaml").write_text("events: []\n", encoding="utf-8")
+
+    service.templates_folder = broken.parent
+
+    assert service.reload() is False
+
+    # The bot keeps serving what it had rather than emptying the schedule channel.
+    assert service.lanes is good
+
+
+def test_a_broken_template_at_startup_is_fatal():
+    from bot.schedule import ScheduleService
+
+    broken = pathlib.Path(tempfile.mkdtemp()) / "sign_language_ksl"
+    broken.mkdir(parents=True)
+    (broken / "meta.yaml").write_text("channels: {}\ndefault_timezone: [not a string\n", encoding="utf-8")
+    (broken / "events.yaml").write_text("events: []\n", encoding="utf-8")
+
+    service = ScheduleService(templates_folder=broken.parent)
+
+    try:
+        service.reload()
+    except Exception:
+        return
+
+    raise AssertionError("Expected a startup reload with no fallback to raise")
+
+
 # --- Python / JavaScript parity -------------------------------------------------------------------
 
 def test_javascript_helper_matches_the_python_one():

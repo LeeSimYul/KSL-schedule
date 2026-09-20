@@ -10,13 +10,14 @@ loop need.
 
 import datetime
 import logging
+import pathlib
 import typing
 
 import discord
 
 from definitions import EventLane, EventLaneEvent, Occurrence
 from embeds import Localizer, collect_week_occurrences, week_window
-from loader import load_event_lanes
+from loader import TEMPLATES_FOLDER, load_event_lanes
 
 
 log = logging.getLogger(__name__)
@@ -73,18 +74,40 @@ def scheduled_event_to_occurrence(
 class ScheduleService:
     """Holds the loaded lanes and everything derived from them."""
 
-    def __init__(self) -> None:
+    def __init__(self, templates_folder: pathlib.Path | None = None) -> None:
+        #: Where the YAML templates live. Overridable so the bot can be run against a
+        #: checkout elsewhere on disk, and so tests can point it at a fixture.
+        self.templates_folder = templates_folder or TEMPLATES_FOLDER
         self.lanes: list[EventLane] = []
         #: Occurrences mirrored from Discord Scheduled Events, keyed by lane name. Kept
         #: separately so a template reload never throws them away.
         self.discord_occurrences: dict[str, list[Occurrence]] = {}
 
-    def reload(self) -> None:
-        """Re-read the YAML templates from disk."""
-        # Webhooks stay unresolved: the bot posts through its own token, and asking for
-        # the webhook secrets here would mean deploying them somewhere they are not used.
-        self.lanes = load_event_lanes(resolve_webhooks=False)
+    def reload(self) -> bool:
+        """
+        Re-read the YAML templates from disk.
+
+        A running bot keeps serving the schedule it already has if the new templates do
+        not parse - a typo pushed to the repository should not blank out ``#schedule``
+        until somebody notices. At startup there is nothing to fall back to, so the error
+        is raised instead and the bot refuses to start with no schedule at all.
+        """
+        try:
+            # Webhooks stay unresolved: the bot posts through its own token, and asking
+            # for the webhook secrets here would mean deploying them somewhere they are
+            # not used.
+            lanes = load_event_lanes(resolve_webhooks=False, templates_folder=self.templates_folder)
+        except Exception:
+            if not self.lanes:
+                raise
+
+            log.exception("Could not reload templates - keeping the last known good schedule")
+            return False
+
+        self.lanes = lanes
         log.info("Loaded %d event lanes", len(self.lanes))
+
+        return True
 
     def lane(self, name: str) -> EventLane | None:
         for lane in self.lanes:

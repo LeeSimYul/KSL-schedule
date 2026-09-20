@@ -46,14 +46,20 @@ class SchedulePoster(commands.Cog):
         for lane in self.bot.service.interactive_lanes():
             try:
                 await self.refresh_lane(lane)
-            except discord.HTTPException:
-                # One lane failing (a deleted channel, a revoked permission) must not stop
-                # the others from updating.
+            except Exception:  # noqa: BLE001 - a deleted channel, a revoked permission,
+                # or bad data in one lane must not stop the others from updating.
                 log.exception("Failed to refresh schedule for lane %s", lane.name)
 
     @refresh.before_loop
     async def before_refresh(self) -> None:
         await self.bot.wait_until_ready()
+
+    @refresh.error
+    async def on_refresh_error(self, error: BaseException) -> None:
+        # discord.py stops a task loop that raises. Restarting means a transient failure
+        # costs one cycle instead of silently freezing the schedule until a redeploy.
+        log.exception("Schedule refresh loop stopped unexpectedly, restarting", exc_info=error)
+        self.refresh.restart()
 
     async def refresh_lane(self, lane: EventLane) -> None:
         channel_id = lane.meta.get("channels", {}).get("schedule", None)
@@ -119,12 +125,17 @@ class ReminderSender(commands.Cog):
 
             try:
                 await self.send_reminder(reminder)
-            except discord.HTTPException:
+            except Exception:  # noqa: BLE001 - one undeliverable DM must not stop the rest
                 log.exception("Failed to send reminder for %s to %s", reminder.occurrence_key, reminder.user_id)
 
     @sweep.before_loop
     async def before_sweep(self) -> None:
         await self.bot.wait_until_ready()
+
+    @sweep.error
+    async def on_sweep_error(self, error: BaseException) -> None:
+        log.exception("Reminder loop stopped unexpectedly, restarting", exc_info=error)
+        self.sweep.restart()
 
     async def send_reminder(self, reminder) -> None:
         lane = self.bot.service.lane(reminder.lane)
@@ -188,6 +199,11 @@ class ScheduledEventSync(commands.Cog):
     async def before_sync(self) -> None:
         await self.bot.wait_until_ready()
 
+    @sync.error
+    async def on_sync_error(self, error: BaseException) -> None:
+        log.exception("Scheduled event sync stopped unexpectedly, restarting", exc_info=error)
+        self.sync.restart()
+
     async def sync_all(self) -> None:
         for lane in self.bot.service.lanes:
             configuration = lane.meta.get("discord_events", None)
@@ -204,7 +220,7 @@ class ScheduledEventSync(commands.Cog):
 
             occurrences = []
 
-            for scheduled_event in guild.scheduled_events:
+            for scheduled_event in list(guild.scheduled_events):
                 if scheduled_event.status not in (
                     discord.EventStatus.scheduled,
                     discord.EventStatus.active,
@@ -220,12 +236,17 @@ class ScheduledEventSync(commands.Cog):
             log.info("Mirrored %d scheduled events into lane %s", len(occurrences), lane.name)
 
     async def resync_and_refresh(self) -> None:
-        await self.sync_all()
+        # Driven by gateway events, so an exception here would propagate into discord.py's
+        # event dispatcher rather than a task loop that knows how to restart itself.
+        try:
+            await self.sync_all()
 
-        poster = self.bot.get_cog("SchedulePoster")
+            poster = self.bot.get_cog("SchedulePoster")
 
-        if poster is not None:
-            await poster.refresh()
+            if poster is not None:
+                await poster.refresh()
+        except Exception:  # noqa: BLE001
+            log.exception("Failed to resync after a scheduled event changed")
 
     @commands.Cog.listener()
     async def on_scheduled_event_create(self, event: discord.ScheduledEvent) -> None:
