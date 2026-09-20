@@ -190,9 +190,16 @@ git push origin main
 
 ### 3-3. 병합 직후 확인
 
-`main` 에 푸시되면 워크플로가 **자동으로 실행됩니다**(`on: push: branches: [main]`).
+`main` 에 푸시되면 워크플로가 실행됩니다(`on: push: branches: [main]`) — **단, Actions가
+켜져 있어야 합니다.**
+
+> 포크된 저장소는 Actions가 기본적으로 꺼져 있습니다. 실제로 이 저장소의 워크플로는
+> 등록만 되어 있고 **실행 이력이 0건**입니다. `Actions` 탭에 들어가
+> `I understand my workflows, go ahead and enable them` 이 보이면 눌러서 켜 주세요.
+> 예약(cron) 실행은 포크에서는 켜도 동작하지 않습니다 — 4장을 참고하세요.
 
 1. `Actions` 탭에서 `Build schedule manifests` 가 초록색인지 확인
+   (자동 실행이 안 됐다면 `Run workflow` 로 수동 실행)
 2. 첫 실행 로그에 이렇게 찍히면 정상입니다.
    ```
    ::notice::deploy branch does not exist yet - creating it
@@ -204,12 +211,119 @@ git push origin main
 
 ---
 
-## 4. 원본 저장소와의 관계 / Upstream
+## 4. 독립 저장소 전환 / Going standalone
 
-### 4-1. 충돌이 생길 파일
+### 4-1. 먼저: 지금 워크플로는 한 번도 실행된 적이 없습니다
 
-`HelpingHandsVR/schedule` 를 다시 동기화(`Sync fork`)하면 아래 파일에서 충돌이 날 수
-있습니다. 이 저장소가 수정한 파일들입니다.
+확인 결과입니다.
+
+```
+워크플로 등록  : Build schedule manifests (state: active, 2025-11-28 등록)
+실행 이력      : 0건
+```
+
+매일 도는 cron(`17 5 * * *`)이 등록되어 있는데도 실행 이력이 0건인 이유는 버그가 아니라
+GitHub 정책입니다.
+
+> **포크된 저장소에서는 예약(`schedule`) 워크플로가 기본적으로 비활성화됩니다.**
+> 포크의 Actions 자체도 기본적으로 꺼져 있습니다.
+
+즉 **독립 저장소로 전환하는 것은 단순한 정리가 아니라, 자동 갱신을 실제로 동작시키는
+전제 조건**입니다. 포크 상태로 두면 손으로 `Run workflow` 를 누를 때만 시간표가 갱신됩니다.
+
+전환 후 `Actions` 탭에서 워크플로가 활성 상태인지 한 번 확인하고, 첫 회는
+`Run workflow` 로 수동 실행해 보는 것을 권합니다.
+
+### 4-2. 방법 1 — 새 저장소로 이전 (권장)
+
+GitHub는 **포크 관계 해제를 UI나 API로 제공하지 않습니다.** 셀프 서비스로 가능한 길은
+새 저장소를 만들어 밀어 넣는 것입니다.
+
+```bash
+# 0) 먼저 브랜치를 main 으로 합칩니다 (3장 참고)
+
+# 1) GitHub에서 새 저장소를 만듭니다.
+#    - 이름: KSL-schedule  (원하는 이름)
+#    - Public / Private 선택
+#    - README, .gitignore, license 는 모두 체크 해제 (빈 저장소여야 합니다)
+
+# 2) 현재 저장소를 미러로 받습니다 (모든 브랜치·태그 포함)
+cd /tmp
+git clone --mirror https://github.com/LeeSimYul/KSL-schedule.git ksl-mirror
+cd ksl-mirror
+
+# 3) 새 저장소로 전부 밀어 넣습니다
+git remote set-url --push origin https://github.com/LeeSimYul/<새-저장소-이름>.git
+git push --mirror
+
+# 4) 평소 쓰던 작업 폴더의 remote 를 새 저장소로 바꿉니다
+cd ~/KSL-schedule
+git remote set-url origin https://github.com/LeeSimYul/<새-저장소-이름>.git
+git remote -v                      # 새 주소인지 확인
+git fetch origin && git status
+```
+
+`--mirror` 는 모든 브랜치와 태그, 전체 커밋 이력을 그대로 옮깁니다. **원본에 대한 기여
+이력이 사라지지 않으므로 출처 표기 측면에서도 이 방법이 가장 정직합니다.**
+
+전환 뒤 할 일:
+
+```bash
+# 원본을 upstream 으로 남겨 두고 싶다면 (선택)
+git remote add upstream https://github.com/HelpingHandsVR/schedule.git
+git remote set-url --push upstream DISABLED     # 실수로 원본에 push 하는 것 방지
+```
+
+- **시크릿은 따라오지 않습니다.** 새 저장소에 다시 등록해야 합니다 (1장).
+- Actions가 켜져 있는지 확인합니다: `Settings` → `Actions` → `General` →
+  `Allow all actions and reusable workflows`.
+- `Settings` → `Actions` → `General` → `Workflow permissions` 는
+  `Read and write permissions` 가 아니어도 됩니다. 워크플로에 `permissions: contents: write`
+  가 명시되어 있습니다.
+- 기존 저장소는 아카이브(`Settings` → `Archive this repository`)하고 README에 새 주소를
+  적어 두면 링크가 끊기지 않습니다.
+
+> **잃게 되는 것**: 스타·워치·포크 수, 기존 이슈/PR, 원본과의 `Sync fork` 버튼.
+> 커밋 이력과 코드는 전부 보존됩니다.
+
+### 4-3. 방법 2 — GitHub 지원팀에 포크 해제 요청
+
+저장소 주소와 스타·이슈를 **그대로 유지**하면서 포크 관계만 끊고 싶다면, GitHub Support에
+요청할 수 있습니다.
+
+1. https://support.github.com/request 접속
+2. 카테고리에서 저장소 관련 항목 선택
+3. 요청 예시:
+   > Please detach `LeeSimYul/KSL-schedule` from its upstream fork network
+   > (`HelpingHandsVR/schedule`). The repository has diverged substantially and is now
+   > maintained as an independent project.
+4. 처리까지 보통 며칠 걸립니다.
+
+원본 저장소가 비공개거나 조직 정책에 걸리면 거절될 수 있습니다. 급하지 않다면 이 방법이
+가장 깔끔하고, 급하다면 4-2가 확실합니다.
+
+### 4-4. 라이선스 정리 (공개 운영 전 필수)
+
+`NOTICE` 파일에 적어 둔 대로, **원본 저장소에는 라이선스가 없습니다.** 포크를 떠나 독립
+프로젝트로 공개 운영하려면 이 부분을 먼저 정리하는 편이 안전합니다.
+
+1. 원저작자(Devon)에게 연락합니다. 원본 README에 연락 안내가 있고, Helping Hands 디스코드
+   서버를 통해서도 닿을 수 있습니다.
+2. 요청 내용 예시:
+   > Hi Devon — we've built a Korean Sign Language (KSL) version of your schedule tool for
+   > the VRChat 한국수어교실 community, and we'd like to run it as its own repository.
+   > Would you be willing to add a license (MIT or Apache-2.0) to
+   > HelpingHandsVR/schedule, or give us written permission to use and publish the
+   > derived work? We credit the original prominently in our README and NOTICE.
+3. 답을 받으면 같은 라이선스의 `LICENSE` 파일을 추가하고, 허락 내용을 `NOTICE` 에
+   기록해 둡니다.
+
+이 저장소가 자체 `LICENSE` 파일을 넣지 않은 이유가 이것입니다 — 기반 코드의 라이선스를
+정할 수 있는 사람은 원저작자뿐입니다.
+
+### 4-5. 포크로 남기기로 했다면
+
+원본을 계속 동기화할 생각이라면, `Sync fork` 시 아래 파일에서 충돌이 날 수 있습니다.
 
 | 파일 | 충돌 가능성 | 해결 방향 |
 |---|:--:|---|
@@ -218,22 +332,19 @@ git push origin main
 | `scripts/definitions.py` | 중간 | 추가 필드는 전부 선택 사항이라 대개 양쪽을 합치면 됩니다 |
 | `schema/*.schema.json` | 중간 | 추가된 속성만 남기면 됩니다 |
 | `.github/workflows/build_manifests.yml` | 중간 | `permissions:` 와 deploy 로직은 유지하세요 |
-| `README.md` | 높음 | KSL 버전을 유지 |
+| `README.md`, `NOTICE` | 높음 | KSL 버전을 유지 |
 | `templates/sign_language_ksl/*` | 낮음 | 이쪽이 정본입니다 |
 | `templates/sign_language_{asl,bsl,dgs,jsl,lsf}/*`, `templates/server_*/*` | **없음** | **일부러 건드리지 않았습니다** |
 
 다른 언어 레인의 템플릿을 **의도적으로 수정하지 않은 이유**가 이것입니다. 그대로 두면
-원본이 그 파일들을 갱신해도 충돌 없이 그냥 따라옵니다. KSL 전용으로 쓰더라도 해당 레인은
-시크릿이 없어 동작하지 않으므로, 삭제할 이유가 없습니다.
+원본이 그 파일들을 갱신해도 충돌 없이 그냥 따라옵니다.
 
-### 4-2. 동기화 후 점검
+### 4-6. 전환 후 점검
 
 ```bash
 python scripts/tests/test_ksl.py                       # 38개 테스트
 python scripts/build_manifests.py --no-send --preview  # 디스코드 전송 없이 렌더링
 ```
-
----
 
 ## 5. 자동화 안정성 요약 / Reliability
 

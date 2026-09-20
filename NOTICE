@@ -1,0 +1,69 @@
+KSL Schedule
+VRChat 한국수어교실(KSL) Discord schedule bot
+https://github.com/LeeSimYul/KSL-schedule
+
+
+ORIGIN / 기반 코드
+------------------
+
+This project began as a fork of:
+
+    HelpingHandsVR/schedule
+    https://github.com/HelpingHandsVR/schedule
+    Author: Devon
+
+The following are the original author's work and remain so:
+
+  * The event-lane template design and its JSON schemas
+      templates/, schema/
+  * The manifest build pipeline and the "old" manifest format
+      scripts/build_manifests.py, scripts/formats/old.py
+  * The original weekly schedule embed layout and its clock/notable-date emoji
+      tables, which scripts/embeds.py carries forward
+  * The GitHub Actions publish-to-deploy-branch structure
+      .github/workflows/build_manifests.yml
+  * The schedules for the ASL, BSL, DGS, JSL and LSF lanes and the two
+      server-wide lanes, which are preserved unmodified
+
+Added for KSL by contributors to this repository:
+
+  * Discord dynamic timestamps and the timezone helpers
+      scripts/timeutil.py, scripts/js/ksl-timeutil.mjs
+  * Bilingual (한/영) rendering and the KSL class embed
+      scripts/embeds.py
+  * Recharging Days, difficulty tiers, VRChat join information
+  * The RSVP / reminder / Discord-Scheduled-Events bot
+      scripts/bot/
+  * Template loading extracted for reuse
+      scripts/loader.py
+  * Tests
+      scripts/tests/
+
+
+LICENSE STATUS / 라이선스 현황
+------------------------------
+
+As of the last check, HelpingHandsVR/schedule carries NO license file, and none
+appears anywhere in the commit history available to this repository.
+
+Code published without a license is, by default, "all rights reserved" by its
+copyright holder. GitHub's Terms of Service permit forking within GitHub, but
+they do not grant the right to redistribute outside GitHub, to sublicense, or to
+relicense the work.
+
+For that reason this repository deliberately does NOT ship a LICENSE file. Only
+the original author can set the license for the code this project is built on,
+and adding one here would be asserting a grant that is not ours to make.
+
+Before operating this repository as a public standalone project, please either:
+
+  1. Ask Devon to add a license to HelpingHandsVR/schedule (MIT and Apache-2.0
+     are both common for this kind of tool), or
+  2. Obtain explicit written permission from Devon covering this repository.
+
+Once the upstream license is known, add the matching LICENSE file here, keep
+this NOTICE for attribution, and record the permission in writing.
+
+Work written specifically for KSL is copyright its contributors, but the project
+as a whole cannot be distributed under a single license until the upstream
+position is settled.
