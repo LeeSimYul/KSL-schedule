@@ -9,7 +9,7 @@
 > Hands 커뮤니티에 깊이 감사드립니다.
 >
 > This project is built on [HelpingHandsVR/schedule](https://github.com/HelpingHandsVR/schedule)
-> by **Devon**. Our sincere thanks to Devon and the Helping Hands community for making the
+> by **scarletcafe(devon)**. Our sincere thanks to Devon and the Helping Hands community for making the
 > original work public — the manifest pipeline, the event-lane template design and the
 > `old.json` format all originate there.
 
