@@ -1,0 +1,141 @@
+# A fully populated KSL events file, showing every field an event can carry.
+#
+# Like its meta counterpart this lives under docs/ and is never published - copy the
+# entries you need into templates/sign_language_ksl/events.yaml.
+
+# yaml-language-server: $schema=../../schema/template_events.schema.json
+
+events:
+  # --- Monday ---------------------------------------------------------------------
+  # A minimal entry. Everything beyond host/name/tags/schedule is optional, and an
+  # event that gives nothing else renders exactly the way it always has.
+  - host: Korea_Yujin
+    name: "KSL Class"
+    tags: ["class"]
+    schedule:
+      basis: "2025-12-01"
+      day: Monday
+      hour: 5
+      minute: 00
+
+  # --- Wednesday ------------------------------------------------------------------
+  # A fully described class.
+  - host: Korea_Yujin
+    name: "KSL 별빛반"
+    tags: ["class", "vocabulary"]
+    kind: class
+    level: root
+    title:
+      ko: 별빛반 (단어)
+      en: Starlight Class (Vocabulary)
+    description:
+      ko: 일상에서 가장 많이 쓰는 한국수어 단어를 손 모양부터 천천히 익힙니다.
+      en: Everyday Korean Sign Language vocabulary, taken slowly from the handshape up.
+    role:
+      ko: 담임
+      en: Teacher
+    platforms: ["pcvr", "quest"]
+    hand_tracking: recommended
+    rsvp: true
+    vrchat:
+      # A direct instance link, so students land in the right instance rather than the
+      # world's public list. Regenerate this when the instance changes.
+      instance_url: https://vrchat.com/home/launch?worldId=wrld_00000000-0000-0000-0000-000000000000&instanceId=12345
+    schedule:
+      basis: "2025-12-03"
+      day: Wednesday
+      hour: 20
+      minute: 0
+      duration: 90
+
+  # --- Friday ---------------------------------------------------------------------
+  - host: Korea_Yujin
+    name: "KSL 달빛반"
+    tags: ["class", "sentences"]
+    kind: class
+    level: stem
+    title:
+      ko: 달빛반 (문장)
+      en: Moonlight Class (Sentences)
+    description:
+      ko: 단어를 문장으로 잇고, 자연스러운 어순과 표정(비수지 신호)을 함께 연습합니다.
+      en: Joining signs into sentences, with word order and non-manual markers.
+    role:
+      ko: 담임
+      en: Teacher
+    platforms: ["pcvr", "quest"]
+    hand_tracking: recommended
+    rsvp: true
+    schedule:
+      basis: "2025-12-05"
+      day: Friday
+      hour: 20
+      minute: 0
+      duration: 90
+
+  # --- Saturday -------------------------------------------------------------------
+  # A fortnightly session - 'interval: 14' with a basis on a week it actually runs.
+  - host: Korea_Minseo
+    name: "KSL 상황극 세션"
+    tags: ["roleplay", "practice"]
+    kind: social
+    level: sprout
+    title:
+      ko: 상황극 세션
+      en: Roleplay Session
+    description:
+      ko: 카페, 병원, 편의점 같은 상황을 정해 두고 배운 수어를 실제로 써 봅니다.
+      en: Cafe, clinic, convenience store - practising what you have learned in scene.
+    role:
+      ko: 부장
+      en: Head
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: supported
+    rsvp: true
+    schedule:
+      basis: "2025-12-06"
+      day: Saturday
+      hour: 21
+      minute: 0
+      interval: 14
+      duration: 120
+
+  # --- Sunday ---------------------------------------------------------------------
+  - host: Korea_Minseo
+    name: "문화 교류회"
+    tags: ["culture", "social"]
+    kind: event
+    title:
+      ko: 문화 교류회
+      en: Culture Exchange Meetup
+    description:
+      ko: 농문화와 각 나라 수어를 서로 소개하는 자유로운 모임입니다. 누구나 환영합니다.
+      en: An open meetup swapping Deaf culture and sign languages. Everyone welcome.
+    role:
+      ko: 진행
+      en: Facilitator
+    platforms: ["pcvr", "quest", "desktop"]
+    rsvp: true
+    schedule:
+      basis: "2025-12-07"
+      day: Sunday
+      hour: 21
+      minute: 0
+      interval: 28
+      duration: 120
+
+# --- 재충전의 날 / Recharging days -----------------------------------------------------
+# Days listed here replace the whole day's embed with the Recharging Day card, and remove
+# this lane's classes from the combined server schedule too. 'until' is inclusive; leave
+# it out for a single day.
+closures:
+  - date: "2026-09-24"
+    until: "2026-09-26"
+    reason:
+      ko: 추석 연휴
+      en: Chuseok holiday
+
+  - date: "2026-10-09"
+    reason:
+      ko: 한글날 - 운영진 휴무
+      en: Hangul Day - staff off

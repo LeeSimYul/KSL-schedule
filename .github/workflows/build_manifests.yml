@@ -35,6 +35,12 @@ jobs:
         run: |
           pip install -U -r scripts/requirements.txt
 
+      # Runs before delivery on purpose: a template or rendering mistake should fail the
+      # build rather than overwrite a working schedule with a broken one.
+      - name: Run tests
+        run: |
+          python scripts/tests/test_ksl.py
+
       - name: Generate manifests
         env:
           GLOBAL_SCHEDULE_WEBHOOK_URL: ${{ secrets.GLOBAL_SCHEDULE_WEBHOOK_URL }}
