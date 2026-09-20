@@ -79,7 +79,7 @@ events:
     platforms: ["pcvr", "quest", "desktop"]
     hand_tracking: supported
     schedule:
-      basis: "2025-12-13"
+      basis: "2025-12-06"
       day: Saturday
       hour: 21
       minute: 0
@@ -103,7 +103,7 @@ events:
     platforms: ["pcvr", "quest"]
     hand_tracking: supported
     schedule:
-      basis: "2025-12-06"
+      basis: "2025-12-13"
       day: Saturday
       hour: 22
       minute: 0
