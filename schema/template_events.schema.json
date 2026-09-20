@@ -6,6 +6,13 @@
             "items": {
                 "$ref": "#/$defs/event"
             }
+        },
+        "closures": {
+            "type": "array",
+            "description": "Days this lane is closed - 재충전의 날, holidays, staff breaks.",
+            "items": {
+                "$ref": "#/$defs/closure"
+            }
         }
     },
     "additionalProperties": false,
@@ -63,12 +70,81 @@
                         "interval": {
                             "type": "number",
                             "description": "Amount of days between events occurring. Defaults to 7 if not provided."
+                        },
+                        "duration": {
+                            "type": "number",
+                            "description": "How long the event runs, in minutes. Defaults to 60. Used for reminders and Discord Scheduled Events.",
+                            "minimum": 1
                         }
                     },
-                    "required": [ "basis", "day", "hour", "minute" ]
+                    "required": [
+                        "basis",
+                        "day",
+                        "hour",
+                        "minute"
+                    ]
+                },
+                "kind": {
+                    "enum": [
+                        "class",
+                        "event",
+                        "social",
+                        "recharge"
+                    ],
+                    "description": "What kind of entry this is. Defaults to 'class'."
+                },
+                "title": {
+                    "$ref": "#/$defs/localized_text",
+                    "description": "Bilingual title. Falls back to 'name' for any language not given."
+                },
+                "description": {
+                    "$ref": "#/$defs/localized_text",
+                    "description": "Bilingual blurb shown under the title."
+                },
+                "level": {
+                    "type": "string",
+                    "description": "Difficulty tier id, as defined in this lane's meta.yaml 'levels' block."
+                },
+                "role": {
+                    "$ref": "#/$defs/localized_text",
+                    "description": "The host's role, e.g. 담임 / Teacher, 부장 / Head."
+                },
+                "platforms": {
+                    "type": "array",
+                    "description": "Recommended or required VR environment.",
+                    "items": {
+                        "enum": [
+                            "pcvr",
+                            "quest",
+                            "desktop",
+                            "mobile"
+                        ]
+                    }
+                },
+                "hand_tracking": {
+                    "enum": [
+                        "required",
+                        "recommended",
+                        "supported",
+                        "unsupported"
+                    ],
+                    "description": "How much this event leans on hand tracking."
+                },
+                "vrchat": {
+                    "$ref": "#/$defs/vrchat"
+                },
+                "rsvp": {
+                    "type": "boolean",
+                    "description": "Offer RSVP / reminder buttons for this event. Requires the bot (scripts/bot/)."
                 }
             },
-            "required": [ "host", "name", "tags", "schedule" ]
+            "required": [
+                "host",
+                "name",
+                "tags",
+                "schedule"
+            ],
+            "additionalProperties": false
         },
         "day": {
             "enum": [
@@ -80,6 +156,65 @@
                 "Saturday",
                 "Sunday"
             ]
+        },
+        "localized_text": {
+            "type": "object",
+            "description": "Text carried in several languages, keyed by ISO 639-1 code (ko, en, ...).",
+            "patternProperties": {
+                "^[a-z]{2}$": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "vrchat": {
+            "type": "object",
+            "description": "VRChat joining information for this event, overriding the lane defaults.",
+            "properties": {
+                "group": {
+                    "type": "string"
+                },
+                "group_url": {
+                    "type": "string",
+                    "pattern": "^https://"
+                },
+                "instance_url": {
+                    "type": "string",
+                    "description": "Direct world instance invite link, e.g. https://vrchat.com/i/...",
+                    "pattern": "^https://"
+                },
+                "world_url": {
+                    "type": "string",
+                    "pattern": "^https://"
+                },
+                "world_name": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "closure": {
+            "type": "object",
+            "description": "A 재충전의 날 / holiday. No events in this lane are shown between these dates, and the day is rendered with its own icon and colour.",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": "First day off, in the lane's default timezone.",
+                    "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+                },
+                "until": {
+                    "type": "string",
+                    "description": "Last day off, inclusive. Omit for a single day.",
+                    "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+                },
+                "reason": {
+                    "$ref": "#/$defs/localized_text"
+                }
+            },
+            "required": [
+                "date"
+            ],
+            "additionalProperties": false
         }
     }
 }

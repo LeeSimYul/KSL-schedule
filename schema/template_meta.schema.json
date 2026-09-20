@@ -81,7 +81,167 @@
                     "description": "Content to appear in the 'header embed' if applicable"
                 }
             }
+        },
+        "display_timezones": {
+            "type": "array",
+            "description": "Timezones spelled out explicitly underneath each dynamic timestamp, in display order. Omit to keep the server-wide default set.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "flag": {
+                        "type": "string",
+                        "description": "A two letter region code (converted to a flag emoji) or a literal emoji such as 🌐."
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "IANA timezone name, e.g. Asia/Seoul. The literal 'UTC' is also accepted."
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Override for the abbreviation. Omit to let the zone decide, which correctly alternates PST/PDT, CET/CEST and so on."
+                    }
+                },
+                "required": [
+                    "flag",
+                    "timezone"
+                ],
+                "additionalProperties": false
+            }
+        },
+        "localization": {
+            "type": "object",
+            "description": "Bilingual (한/영) layout settings for this lane's embeds.",
+            "properties": {
+                "primary": {
+                    "type": "string",
+                    "description": "Language shown first, e.g. ko.",
+                    "pattern": "^[a-z]{2}$"
+                },
+                "secondary": {
+                    "type": "string",
+                    "description": "Language shown second. Omit for a single-language lane.",
+                    "pattern": "^[a-z]{2}$"
+                },
+                "separator": {
+                    "type": "string",
+                    "description": "Placed between the two languages on a shared line. Defaults to ' · '."
+                },
+                "labels": {
+                    "type": "object",
+                    "description": "Overrides for the embed's own wording (host, level, join, no_events, recharge, ...).",
+                    "additionalProperties": {
+                        "type": "object",
+                        "description": "Text carried in several languages, keyed by ISO 639-1 code (ko, en, ...).",
+                        "patternProperties": {
+                            "^[a-z]{2}$": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": [
+                "primary"
+            ],
+            "additionalProperties": false
+        },
+        "levels": {
+            "type": "object",
+            "description": "Difficulty tiers available to this lane's events, keyed by the id used in events.yaml.",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "emoji": {
+                        "type": "string",
+                        "description": "Icon shown next to the tier name."
+                    },
+                    "names": {
+                        "type": "object",
+                        "description": "The tier's name in each language.",
+                        "patternProperties": {
+                            "^[a-z]{2}$": {
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "order": {
+                        "type": "number",
+                        "description": "Sort hint, lowest is the most introductory."
+                    }
+                },
+                "required": [
+                    "names"
+                ],
+                "additionalProperties": false
+            }
+        },
+        "vrchat": {
+            "type": "object",
+            "description": "Lane-wide VRChat defaults. Individual events may override any of these.",
+            "properties": {
+                "group": {
+                    "type": "string",
+                    "description": "Display name of the VRChat group, e.g. KSL."
+                },
+                "group_url": {
+                    "type": "string",
+                    "description": "Link to the VRChat group page.",
+                    "pattern": "^https://"
+                },
+                "instance_url": {
+                    "type": "string",
+                    "description": "Direct world instance invite link, e.g. https://vrchat.com/i/...",
+                    "pattern": "^https://"
+                },
+                "world_url": {
+                    "type": "string",
+                    "description": "Link to the world's page.",
+                    "pattern": "^https://"
+                },
+                "world_name": {
+                    "type": "string",
+                    "description": "Display name of the world."
+                }
+            },
+            "additionalProperties": false
+        },
+        "discord_events": {
+            "type": "object",
+            "description": "Mirrors Discord Scheduled Events from a guild into this lane's schedule. Requires the bot (scripts/bot/).",
+            "properties": {
+                "guild": {
+                    "type": "number",
+                    "description": "The Discord guild ID to read scheduled events from.",
+                    "minimum": 499435275844321280
+                },
+                "name_prefix": {
+                    "type": "string",
+                    "description": "Only mirror events whose name starts with this. Omit to mirror all of them."
+                },
+                "default_kind": {
+                    "enum": [
+                        "class",
+                        "event",
+                        "social",
+                        "recharge"
+                    ],
+                    "description": "Kind applied to mirrored events. Defaults to 'event'."
+                }
+            },
+            "required": [
+                "guild"
+            ],
+            "additionalProperties": false
+        },
+        "interactions": {
+            "type": "boolean",
+            "description": "Attach RSVP / reminder buttons to this lane's schedule. Requires the bot (scripts/bot/) - the GitHub Actions webhook build cannot send interactive buttons."
         }
     },
-    "required": ["channels", "default_timezone"]
+    "required": [
+        "channels",
+        "default_timezone"
+    ]
 }

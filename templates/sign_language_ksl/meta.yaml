@@ -16,7 +16,62 @@ language_info:
     en: Korean Sign Language
     ko: 한국 수화 언어
 
+# Korean first, English second. Every label and every translated title in this lane is
+# rendered in both, so an overseas student never has to guess.
+localization:
+  primary: ko
+  secondary: en
+  separator: " · "
+
+# Spelled out underneath each dynamic timestamp. The dynamic timestamp already adapts to
+# each viewer's own client, so this list is for screenshots, forum cross-posts and anyone
+# comparing timezones at a glance - hence Korea first, then the regions KSL draws from.
+display_timezones:
+  - { flag: KR, timezone: Asia/Seoul }
+  - { flag: US, timezone: America/Los_Angeles }
+  - { flag: US, timezone: America/New_York }
+  - { flag: EU, timezone: Europe/Paris }
+  - { flag: AU, timezone: Australia/Sydney }
+  - { flag: "🌐", timezone: UTC, label: UTC }
+
+# The KSL difficulty ladder. Referenced from events.yaml by key.
+levels:
+  seed:
+    emoji: "🌰"
+    order: 1
+    names:
+      ko: 씨앗 (입문)
+      en: Seed (Introductory)
+  root:
+    emoji: "🌱"
+    order: 2
+    names:
+      ko: 뿌리 (초급)
+      en: Root (Beginner)
+  stem:
+    emoji: "🎋"
+    order: 3
+    names:
+      ko: 줄기 (중급)
+      en: Stem (Intermediate)
+  cotyledon:
+    emoji: "🍀"
+    order: 4
+    names:
+      ko: 떡잎 (고급)
+      en: Cotyledon (Advanced)
+  sprout:
+    emoji: "🌿"
+    order: 5
+    names:
+      ko: 새싹 (자유 소통)
+      en: Sprout (Free conversation)
+
 webhook:
   channel: schedule
   url: KSL_SCHEDULE_WEBHOOK_URL
   message_id: KSL_SCHEDULE_MESSAGE_ID
+
+# VRChat group / world links, and the RSVP + reminder buttons, are configured here too.
+# Both are left out until real values exist - see docs/examples/ for a filled-in lane and
+# docs/KSL_GUIDE.md for what each block does.

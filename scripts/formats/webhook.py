@@ -1,216 +1,162 @@
 # -*- coding: utf-8 -*-
 
 """
-Webhook, technically not a format, but allows us to send webhook messages
+Webhook, technically not a format, but allows us to send webhook messages.
+
+The embeds themselves are built in ``embeds.py`` - this module is only responsible for
+getting them in front of people.
+
+A note on buttons: Discord only accepts *link* buttons on a webhook message
+(``SyncWebhook views can only contain URL buttons``), because anything clickable that
+needs a reply has to be answered by a running application within three seconds, and this
+build is a cron job that exits. The RSVP and reminder buttons therefore live in the bot
+(``scripts/bot/``); what we can and do attach here are the VRChat join links.
 """
 
-import datetime
-import collections
-import itertools
-from zoneinfo import ZoneInfo
+import typing
 
 import discord
 
-from definitions import EventLane, EventLaneEvent
+from ci import annotate as emit_annotation
+from definitions import EventLane
+from embeds import Localizer, build_weekly_embeds, enforce_embed_limits
 
 
-def calculate_notable_date_emojis(year: int) -> dict[tuple[int, int], str]:
-    notable_date_emojis = {
-        (1,  1):  "🎉",   # New Year's Day
-        (2,  14): "❤️",   # Valentine’s Day
-        (3,  13): "🦻",   # Start of National Deaf History Month
-        (3,  17): "🍀",   # St. Patrick’s Day
-        (4,  1):  "🥳",   # April Fools Day
-        (4,  8):  "🎓",   # Anniversary of the founding of Gallaudet University
-        (4,  15): "<:aslA:770863405380665345>",  # National ASL Day
-        (4,  22): "🌱",   # Earth Day
-        (6,  5):  "🌍",   # World Environment Day
-        (7,  26): "⚖️",   # Americans with Disabilities Act (ADA) Anniversary
-        (9,  21): "🕊️",   # International Day of Peace
-        (9,  23): "🤟",   # International Day of Sign Languages
-        (10, 10): "<:hhlogo:586607081000271877>",  # Helping Hands Discord Server Anniversary
-        (10, 31): "🎃",   # Halloween
-        (12, 24): "🎄",   # Christmas Eve
-        (12, 25): "🎅",   # Christmas Day
-        (12, 26): "📦",   # Boxing Day get it it's a box haha
-        (12, 31): "🎆",   # New Year's Eve
-    }
+def build_link_buttons(event_lane: EventLane) -> discord.ui.View | None:
+    """
+    Lane-wide VRChat links as buttons under the schedule message.
 
-    return notable_date_emojis
+    Only link buttons are possible here, and they are message-wide rather than per-event,
+    so this uses the lane's own VRChat block - the per-event links stay inline in the
+    embeds where they can be attributed to the right class.
+    """
+    vrchat = event_lane.meta.get("vrchat", None)
 
+    if not vrchat:
+        return None
 
-CLOCK_EMOJIS: list[tuple[float, str]] = [
-    (-01.0, "\N{CLOCK FACE ELEVEN OCLOCK}"),
-    (-00.5, "\N{CLOCK FACE ELEVEN-THIRTY}"),
-    (+00.0, "\N{CLOCK FACE TWELVE OCLOCK}"),
-    (+00.5, "\N{CLOCK FACE TWELVE-THIRTY}"),
-    (+01.0, "\N{CLOCK FACE ONE OCLOCK}"),
-    (+01.5, "\N{CLOCK FACE ONE-THIRTY}"),
-    (+02.0, "\N{CLOCK FACE TWO OCLOCK}"),
-    (+02.5, "\N{CLOCK FACE TWO-THIRTY}"),
-    (+03.0, "\N{CLOCK FACE THREE OCLOCK}"),
-    (+03.5, "\N{CLOCK FACE THREE-THIRTY}"),
-    (+04.0, "\N{CLOCK FACE FOUR OCLOCK}"),
-    (+04.5, "\N{CLOCK FACE FOUR-THIRTY}"),
-    (+05.0, "\N{CLOCK FACE FIVE OCLOCK}"),
-    (+05.5, "\N{CLOCK FACE FIVE-THIRTY}"),
-    (+06.0, "\N{CLOCK FACE SIX OCLOCK}"),
-    (+06.5, "\N{CLOCK FACE SIX-THIRTY}"),
-    (+07.0, "\N{CLOCK FACE SEVEN OCLOCK}"),
-    (+07.5, "\N{CLOCK FACE SEVEN-THIRTY}"),
-    (+08.0, "\N{CLOCK FACE EIGHT OCLOCK}"),
-    (+08.5, "\N{CLOCK FACE EIGHT-THIRTY}"),
-    (+09.0, "\N{CLOCK FACE NINE OCLOCK}"),
-    (+09.5, "\N{CLOCK FACE NINE-THIRTY}"),
-    (+10.0, "\N{CLOCK FACE TEN OCLOCK}"),
-    (+10.5, "\N{CLOCK FACE TEN-THIRTY}"),
-    (+11.0, "\N{CLOCK FACE ELEVEN OCLOCK}"),
-    (+11.5, "\N{CLOCK FACE ELEVEN-THIRTY}"),
-    (+12.0, "\N{CLOCK FACE TWELVE OCLOCK}"),
-    (+12.5, "\N{CLOCK FACE TWELVE-THIRTY}"),
-    (+13.0, "\N{CLOCK FACE ONE OCLOCK}"),
-    (+13.5, "\N{CLOCK FACE ONE-THIRTY}"),
-]
+    localizer = Localizer(event_lane.meta.get("localization", None))
+    view = discord.ui.View()
 
-TIMEZONE_PAIRS = (
-    ("US", ZoneInfo("Pacific/Honolulu")),
-    ("US", ZoneInfo("America/Los_Angeles")),
-    ("US", ZoneInfo("America/Chicago")),
-    ("US", ZoneInfo("America/New_York")),
-    ("UN", datetime.UTC),
-    ("GB", ZoneInfo("Europe/London")),
-    ("FR", ZoneInfo("Europe/Paris")),
-    ("AU", ZoneInfo("Australia/Sydney")),
-    ("KR", ZoneInfo("Asia/Seoul")),
-)
+    candidates: tuple[tuple[str, str], ...] = (
+        ("group_url", vrchat.get("group") or localizer.label("group")),
+        ("instance_url", localizer.label("instance")),
+        ("world_url", vrchat.get("world_name") or localizer.label("world")),
+    )
+
+    for url_key, label in candidates:
+        url = vrchat.get(url_key, None)
+
+        if not url:
+            continue
+
+        # Discord rejects button labels over 80 characters outright.
+        view.add_item(discord.ui.Button(style=discord.ButtonStyle.link, url=url, label=label[:80]))
+
+    if not view.children:
+        return None
+
+    return view
 
 
-def to_regionals(text: str):
-    mapping = 0x1f1e6 - 0x61
+def annotate(level: str, lane_name: str, message: str) -> None:
+    """Report a lane-scoped problem into the Actions run's annotations panel."""
+    emit_annotation(level, f"[{lane_name}] {message}")
 
-    return ''.join(chr(ord(x) + mapping) for x in text.lower())
+
+def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
+    """
+    Render and deliver one lane's schedule, returning the message ID it now lives at.
+
+    Editing is preferred over posting so the message keeps its place, its pins and its
+    links - but a message someone deleted can never be edited again, so a 404 falls back
+    to posting a fresh one rather than failing this lane forever.
+    """
+    weekday_embeds = build_weekly_embeds(event_lane, event_lanes)
+
+    for warning in enforce_embed_limits(weekday_embeds):
+        annotate('warning', event_lane.name, warning)
+
+    view = build_link_buttons(event_lane)
+    extra: dict[str, typing.Any] = {} if view is None else {"view": view}
+
+    if event_lane.webhook_message_id:
+        try:
+            message = event_lane.webhook.edit_message(
+                message_id=event_lane.webhook_message_id,
+                embeds=weekday_embeds,
+                **extra,
+            )
+            return message.id
+        except discord.NotFound:
+            annotate(
+                'warning', event_lane.name,
+                f"Schedule message {event_lane.webhook_message_id} no longer exists - posting a new one. "
+                f"Update the message ID secret to the new value printed below.",
+            )
+
+    message = event_lane.webhook.send(embeds=weekday_embeds, wait=True, **extra)
+
+    # Posting is a one-off: every later run should edit this message instead of adding
+    # another one. That only happens once the ID is stored, so the ID is raised as an
+    # annotation - naming the exact secret - rather than logged where it would be missed.
+    secret_name = (event_lane.webhook_info or {}).get('message_id', '<message id secret>')
+
+    annotate(
+        'notice', event_lane.name,
+        f"Posted a NEW schedule message: {message.id} - "
+        f"set the secret {secret_name}={message.id} so future runs edit it instead of "
+        f"posting another copy.",
+    )
+
+    return message.id
 
 
 def send_webhooks(event_lanes: list[EventLane]) -> dict:
-    lane_messages = {}
+    """
+    Deliver every configured lane, in isolation from one another.
 
-    # Calculate for each event lane, as it changes how we calculate what counts as 'today'
+    discord.py already retries rate limits (429) and server errors (5xx) internally, so
+    what reaches us here is terminal: a revoked webhook, a missing permission, or a bug in
+    one lane's data. None of those are a reason to abandon the other lanes, and none are a
+    reason to abandon the manifest either - the VRChat side reads ``old.json`` and does
+    not care whether Discord accepted the embeds. So failures are annotated loudly and the
+    build continues, unless every single lane failed, which means something systemic.
+    """
+    lane_messages = {}
+    attempted = 0
+    failures: list[str] = []
+
     for event_lane in event_lanes:
         # We can't work with no webhook..
         if not event_lane.webhook:
             continue
 
-        # Use New York time at 5am
-        event_lane_zone = ZoneInfo(event_lane.meta["default_timezone"])
-        now = datetime.datetime.now(event_lane_zone)
-        last_monday_5am = (now - datetime.timedelta(days=now.weekday())).replace(hour=5, minute=0, second=0, microsecond=0)
+        attempted += 1
 
-        # If it's, for example, 4am on a Monday, we still don't consider the week turned over yet so use last week
-        if last_monday_5am > now:
-            last_monday_5am = last_monday_5am - datetime.timedelta(days=7)
-
-        next_monday_5am = last_monday_5am + datetime.timedelta(days=7)
-
-        events_by_day: dict[int, list[tuple[EventLaneEvent, datetime.datetime]]] = collections.defaultdict(list)
-
-        if event_lane.meta.get('use_all_events', False):
-            events = list(itertools.chain(*[lane.events for lane in event_lanes]))
-        else:
-            events = event_lane.events
-
-        for event in events:
-            next_occurrence = event.next_occurrence_after(last_monday_5am)
-
-            # If the event has no next occurrence then we don't care about it right now
-            if next_occurrence is None:
-                continue
-
-            # If this event doesn't next occur within this week then we don't care about it right now
-            if next_occurrence < last_monday_5am or next_occurrence >= next_monday_5am:
-                continue
-
-            # Add the event and its next time to the list
-            events_by_day[next_occurrence.astimezone(event_lane_zone).weekday()].append((event, next_occurrence))
-
-        # One embed for each day
-        weekday_embeds = []
-
-        # If a header exists, make an embed for it
-        header_text = event_lane.webhook_info.get('header', '')
-
-        if header_text:
-            weekday_embeds.append(discord.Embed(
-                color=discord.Color.from_rgb(254, 254, 254),
-                description=header_text,
-            ))
-
-        # Todo: add timezone shift warning
-
-        for weekday_offset in range(0, 7):
-            # Calculate the day
-            day = last_monday_5am + datetime.timedelta(days=weekday_offset)
-
-            # Sort the events in the list by their next occurrence
-            events_by_day[weekday_offset].sort(key=lambda pair: pair[1])
-
-            # Calculate notable date emojis
-            notable_date_emojis = calculate_notable_date_emojis(day.year)
-
-            emoji = notable_date_emojis.get((day.month, day.day), None)
-
-            if emoji is None:
-                title = f"# \N{SPIRAL CALENDAR PAD} {day:%A (%Y-%m-%d)}"
-            else:
-                title = f"# {emoji} {day:%A (%Y-%m-%d)}"
-
-            description_parts = [
-                title,
-            ]
-
-            if events_by_day[weekday_offset]:
-                for (event, next_occurrence) in events_by_day[weekday_offset]:
-                    hour_time = (next_occurrence.hour + (next_occurrence.minute / 60)) % 12
-                    emoji = min(CLOCK_EMOJIS, key=lambda pair: abs(pair[0] - hour_time))[1]
-
-                    target_timezones = []
-
-                    for flag, target_timezone in TIMEZONE_PAIRS:
-                        as_target = next_occurrence.astimezone(target_timezone)
-                        flag = to_regionals(flag)
-
-                        if as_target.day != day.day:
-                            target_timezones.append(f'\u200b    {flag}  {as_target.strftime("%I:%M %p")} {as_target.tzname()} ({as_target.strftime("%a")})')
-                        else:
-                            target_timezones.append(f'\u200b    {flag}  {as_target.strftime("%I:%M %p")} {as_target.tzname()}')
-
-                    description_parts.append(
-                        f"**{event.name}** with {event.host}\n"
-                        f"\u200b    {emoji} {discord.utils.format_dt(next_occurrence, 'f')}\n"
-                        f"{'\n'.join(target_timezones)}"
-                    )
-
-            else:
-                description_parts.append("-# -- No events this day. --")
-
-            embed = discord.Embed(
-                color=discord.Color.from_hsv(weekday_offset / 7.0, 1.0, 1.0),
-                description="\n\n".join(description_parts)
+        try:
+            lane_messages[event_lane.name] = deliver_lane(event_lane, event_lanes)
+        except discord.Forbidden:
+            failures.append(event_lane.name)
+            annotate(
+                'error', event_lane.name,
+                "Discord refused the request (403). The webhook was probably deleted or "
+                "regenerated - create a new one and update this lane's URL secret.",
             )
-
-            weekday_embeds.append(embed)
-
-        # If a message exists update it
-        if event_lane.webhook_message_id:
-            message = event_lane.webhook.edit_message(
-                message_id=event_lane.webhook_message_id,
-                embeds=weekday_embeds,
+        except discord.HTTPException as error:
+            failures.append(event_lane.name)
+            annotate(
+                'error', event_lane.name,
+                f"Discord rejected the schedule after retries (HTTP {error.status}): {error.text}",
             )
-        else:
-            message = event_lane.webhook.send(
-                embeds=weekday_embeds,
-                wait=True,
-            )
+        except Exception as error:  # noqa: BLE001 - one lane's data must not sink the rest
+            failures.append(event_lane.name)
+            annotate('error', event_lane.name, f"Could not build or deliver this schedule: {error!r}")
 
-        lane_messages[event_lane.name] = message.id
+    if attempted and len(failures) == attempted:
+        raise RuntimeError(
+            f"Every configured webhook failed ({', '.join(failures)}). "
+            f"This usually means the secrets are wrong or Discord is unreachable."
+        )
 
     return lane_messages

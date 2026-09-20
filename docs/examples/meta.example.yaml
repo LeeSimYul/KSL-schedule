@@ -1,0 +1,100 @@
+# A fully populated KSL lane, showing every block the schedule understands.
+#
+# This file lives under docs/ on purpose: the build only reads templates/*/meta.yaml, so
+# nothing here is ever published. Copy the blocks you want into
+# templates/sign_language_ksl/meta.yaml once the real IDs and links exist.
+
+# yaml-language-server: $schema=../../schema/template_meta.schema.json
+
+channels:
+  schedule: 1276966404301652081
+  events: 1276966478020612171
+  introduction: 1276966523210170459
+  general: 1276966561407828072
+  forum: 1022659259919503420
+
+# Every 'basis' time in events.yaml is read in this timezone unless the event overrides
+# it, and the week rolls over at 5am here.
+default_timezone: Asia/Seoul
+
+language_info:
+  abbreviation: KSL
+  native_localization: ko
+  localized_name:
+    en: Korean Sign Language
+    ko: 한국 수화 언어
+
+# --- Bilingual (한/영) layout -------------------------------------------------------
+# 'primary' is printed first. Drop 'secondary' and the lane becomes single-language
+# again. 'labels' is optional and only needed to override the built-in wording.
+localization:
+  primary: ko
+  secondary: en
+  separator: " · "
+  labels:
+    host:
+      ko: 진행자
+      en: Host
+    level:
+      ko: 난이도
+      en: Level
+    no_events:
+      ko: 이 날은 수업이 없습니다.
+      en: No classes this day.
+    recharge:
+      ko: 재충전의 날
+      en: Recharging Day
+    recharge_note:
+      ko: 운영진 휴무로 수업을 쉽니다. 다음 시간에 만나요!
+      en: Staff are off today - see you next time!
+
+# --- Explicit timezone lines --------------------------------------------------------
+# 'flag' takes a two letter region code (rendered as a flag emoji) or a literal emoji.
+# Omit 'label' and the zone reports its own abbreviation, which is what makes PST/PDT and
+# CET/CEST switch over correctly on their own.
+display_timezones:
+  - { flag: KR, timezone: Asia/Seoul }
+  - { flag: US, timezone: America/Los_Angeles }
+  - { flag: US, timezone: America/New_York }
+  - { flag: EU, timezone: Europe/Paris }
+  - { flag: AU, timezone: Australia/Sydney }
+  - { flag: "🌐", timezone: UTC, label: UTC }
+
+# --- Difficulty ladder --------------------------------------------------------------
+levels:
+  seed:      { emoji: "🌰", order: 1, names: { ko: 씨앗 (입문),      en: Seed (Introductory) } }
+  root:      { emoji: "🌱", order: 2, names: { ko: 뿌리 (초급),      en: Root (Beginner) } }
+  stem:      { emoji: "🎋", order: 3, names: { ko: 줄기 (중급),      en: Stem (Intermediate) } }
+  cotyledon: { emoji: "🍀", order: 4, names: { ko: 떡잎 (고급),      en: Cotyledon (Advanced) } }
+  sprout:    { emoji: "🌿", order: 5, names: { ko: 새싹 (자유 소통), en: Sprout (Free conversation) } }
+
+# --- VRChat ---------------------------------------------------------------------------
+# Lane-wide defaults. Any event may override any of these individually.
+# These also become link buttons underneath the schedule message.
+vrchat:
+  group: KSL 한국수어교실
+  group_url: https://vrchat.com/home/group/grp_00000000-0000-0000-0000-000000000000
+  world_url: https://vrchat.com/home/world/wrld_00000000-0000-0000-0000-000000000000
+  world_name: KSL Classroom
+
+# --- Delivery -------------------------------------------------------------------------
+webhook:
+  channel: schedule
+  url: KSL_SCHEDULE_WEBHOOK_URL
+  message_id: KSL_SCHEDULE_MESSAGE_ID
+  header: |
+    # 한국수어교실 주간 시간표 · KSL Weekly Schedule
+
+    모든 시간은 여러분의 디스코드 설정 시간대로 표시됩니다.
+    All times below are shown in your own Discord timezone automatically.
+
+# --- Bot-only features ------------------------------------------------------------------
+# Both of these need the long-running bot in scripts/bot/. The GitHub Actions build
+# cannot provide them: Discord only accepts link buttons on a webhook message, and
+# reading scheduled events requires a bot token.
+interactions: true
+
+discord_events:
+  guild: 1276966404301652081
+  name_prefix: "[KSL]"
+  default_kind: event
