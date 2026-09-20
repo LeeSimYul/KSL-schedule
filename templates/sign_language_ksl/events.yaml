@@ -26,8 +26,8 @@ events:
     level: starlight
     role: principal
     title:
-      ko: 별빛반 (단어)
-      en: Starlight Class (Vocabulary)
+      ko: 별빛반 (단어) · 새벽반
+      en: Starlight Class (Vocabulary) · Early morning
     description:
       ko: 일상에서 가장 많이 쓰는 한국수어 단어를 손 모양부터 천천히 익힙니다.
       en: Everyday Korean Sign Language vocabulary, taken slowly from the handshape up.
@@ -118,8 +118,8 @@ events:
     level: starlight
     role: homeroom_teacher
     title:
-      ko: 별빛반 (단어)
-      en: Starlight Class (Vocabulary)
+      ko: 별빛반 (단어) · 야간반
+      en: Starlight Class (Vocabulary) · Night
     description:
       ko: 일상에서 가장 많이 쓰는 한국수어 단어를 손 모양부터 천천히 익힙니다.
       en: Everyday Korean Sign Language vocabulary, taken slowly from the handshape up.
