@@ -40,28 +40,6 @@ events:
       minute: 00
       duration: 60
 
-  # ── 금요일 / Friday · 달빛반 ──────────────────────────────────────────────────────
-  - host: Simulacre.
-    name: "KSL 달빛반"
-    tags: ["class", "sentences"]
-    kind: class
-    level: moonlight
-    role: homeroom_teacher
-    title:
-      ko: 달빛반 (문장)
-      en: Moonlight Class (Sentences)
-    description:
-      ko: 단어를 문장으로 잇고, 자연스러운 어순과 비수지 신호(표정)를 함께 연습합니다.
-      en: Joining signs into sentences, with word order and non-manual markers.
-    platforms: ["pcvr", "quest"]
-    hand_tracking: recommended
-    schedule:
-      basis: "2025-12-05"
-      day: Friday
-      hour: 21
-      minute: 0
-      duration: 60
-
   # ── 토요일 / Saturday · 감상부 ─────────────────────────────────────────────────────
   # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
@@ -137,7 +115,8 @@ events:
 # 'until' 은 끝날 포함이며, 생략하면 하루만 휴무입니다.
 # 음력 공휴일(설날·추석)은 해마다 날짜가 달라지므로 매년 직접 갱신해 주세요.
 closures:
-  - date: "2026-09-25"
+  - date: "2026-09-24"
+    until: "2026-09-27"
     reason:
-      ko: 추석 - 운영진 휴무
+      ko: 추석 연휴 - 운영진 휴무
       en: Chuseok - staff off
