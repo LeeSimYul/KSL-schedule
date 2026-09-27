@@ -40,30 +40,6 @@ events:
       minute: 00
       duration: 60
 
-  # ── 토요일 / Saturday · 감상부 ──────────────────────────────────────────────────────
-  # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
-  # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
-  - host: EEVEE_03
-    name: "KSL 자유 모임"
-    tags: ["social", "practice"]
-    kind: social
-    role: appreciation_head
-    title:
-      ko: 감상부 (감상 이벤트)
-      en: Appreciation Club (Watching Event)
-    description:
-      ko: 배운 수어를 편하게 써 보는 감상 이벤트입니다. 반에 상관없이 누구나 환영합니다.
-      en: A relaxed session for using what you have learned. All classes welcome.
-    platforms: ["pcvr", "quest", "desktop"]
-    hand_tracking: supported
-    schedule:
-      basis: "2025-12-06"
-      day: Saturday
-      hour: 21
-      minute: 0
-      interval: 14
-      duration: 120
-
   # ── 토요일 / Saturday · 탐험부 ─────────────────────────────────────────────────────
   # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
