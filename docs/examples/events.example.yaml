@@ -115,6 +115,52 @@ events:
       interval: 28
       duration: 120
 
+  # ── 화요일 / Tuesday · 별빛반 ──────────────────────────────────────────────────────
+  - host: Korea_Yujin
+    name: "KSL 별빛반"
+    tags: ["class", "vocabulary"]
+    kind: class
+    level: starlight
+    role: principal
+    title:
+      ko: 별빛반 (단어) · 새벽반
+      en: Starlight Class (Vocabulary) · Early morning
+    description:
+      ko: 일상에서 가장 많이 쓰는 한국수어 단어를 손 모양부터 천천히 익힙니다.
+      en: Everyday Korean Sign Language vocabulary, taken slowly from the handshape up.
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: recommended
+    schedule:
+      basis: "2025-12-02"
+      day: Tuesday
+      hour: 5
+      minute: 00
+      duration: 60
+
+  # ── 토요일 / Saturday · 감상부 ─────────────────────────────────────────────────────
+  # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
+  # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
+  - host: EEVEE_03
+    name: "KSL 자유 모임"
+    tags: ["social", "practice"]
+    kind: social
+    role: appreciation_head
+    title:
+      ko: 감상부 (감상 이벤트)
+      en: Appreciation Club (Watching Event)
+    description:
+      ko: 배운 수어를 편하게 써 보는 감상 이벤트입니다. 반에 상관없이 누구나 환영합니다.
+      en: A relaxed session for using what you have learned. All classes welcome.
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: supported
+    schedule:
+      basis: "2025-12-06"
+      day: Saturday
+      hour: 21
+      minute: 0
+      interval: 14
+      duration: 120
+
 # --- 재충전의 날 / Recharging days -----------------------------------------------------
 # Days listed here replace the whole day's embed with the Recharging Day card, and remove
 # this lane's classes from the combined server schedule too. 'until' is inclusive; leave
