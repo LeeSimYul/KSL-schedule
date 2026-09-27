@@ -10,6 +10,7 @@ Runnable two ways, so nobody needs a test runner installed to check their change
 """
 
 import asyncio
+import contextlib
 import datetime
 import pathlib
 import sys
@@ -29,6 +30,40 @@ from definitions import EventLane, EventLaneClosure, EventLaneEvent, Occurrence 
 
 
 KST = ZoneInfo("Asia/Seoul")
+
+
+# --- Helpers ---------------------------------------------------------------------------
+
+@contextlib.contextmanager
+def quiet_output():
+    """
+    Swallow stdout while a test exercises a failure path.
+
+    The delivery code reports failures as GitHub workflow commands, so a mock 403 in a
+    passing test would otherwise show up in the run's Annotations panel as a real error -
+    alarming, and it buries the one annotation that matters.
+    """
+    import io
+
+    captured = io.StringIO()
+
+    with contextlib.redirect_stdout(captured):
+        yield captured
+
+
+@contextlib.contextmanager
+def quiet_logging(logger_name: str):
+    """Silence a logger while a test deliberately triggers the error it reports."""
+    import logging
+
+    logger = logging.getLogger(logger_name)
+    previous = logger.disabled
+    logger.disabled = True
+
+    try:
+        yield
+    finally:
+        logger.disabled = previous
 
 
 # --- Fixtures --------------------------------------------------------------------------
@@ -567,7 +602,23 @@ def test_every_template_in_the_repository_still_loads():
     assert loader.find_lane(lanes, "sign_language_ksl") is not None
 
 
+def summarise(events) -> str:
+    """One readable line per event - a dataclass dump of a whole lane tells you nothing."""
+    return "\n".join(
+        f"    {event.schedule_summary if hasattr(event, 'schedule_summary') else ''}"
+        f"{event.basis:%a %H:%M}  {event.host:<14} {event.title.get('ko') or event.name}"
+        for event in events
+    )
+
+
 def test_documented_examples_load_and_render():
+    """
+    The files under docs/examples must stay loadable, and stay documentation.
+
+    They are never published - the build only reads templates/*/meta.yaml - so a real
+    class added here silently never reaches Discord. That has happened, which is why the
+    count is pinned rather than left open.
+    """
     examples = SCRIPTS_FOLDER.parent / "docs" / "examples"
     staging = pathlib.Path(tempfile.mkdtemp()) / "sign_language_ksl"
     staging.mkdir(parents=True)
@@ -578,13 +629,57 @@ def test_documented_examples_load_and_render():
     lanes = loader.load_event_lanes(resolve_webhooks=False, templates_folder=staging.parent)
     lane = lanes[0]
 
-    assert len(lane.events) == 5, lane.events
-    assert len(lane.closures) == 2
+    assert len(lane.events) == 5, (
+        f"docs/examples/events.example.yaml now has {len(lane.events)} events, expected 5.\n\n"
+        f"{summarise(lane.events)}\n\n"
+        f"  docs/examples/ is DOCUMENTATION and is never published to Discord.\n"
+        f"  Adding a real class here means it never appears on the schedule.\n\n"
+        f"  실제 수업을 추가하려던 것이라면 이 파일이 아니라\n"
+        f"    templates/sign_language_ksl/events.yaml\n"
+        f"  에 넣어야 합니다. 두 파일 이름이 같으니 경로를 확인해 주세요.\n\n"
+        f"  예시 파일을 일부러 늘린 것이라면 이 테스트의 기대값 5를 함께 고쳐 주세요."
+    )
+    assert len(lane.closures) == 2, f"expected 2 documented closures, got {len(lane.closures)}"
+
+    # The examples exist to demonstrate the features, so check they still do.
+    assert {event.level for event in lane.events if event.level} == {"starlight", "moonlight"}
+    assert any(not event.level for event in lane.events), "one example should have no class line"
 
     built = embeds.build_weekly_embeds(lane, lanes, now=datetime.datetime(2026, 9, 23, 12, 0, tzinfo=KST))
 
     assert embeds.enforce_embed_limits(built) == []
     assert any(embed.colour == embeds.RECHARGE_COLOUR for embed in built)
+
+
+def test_real_sessions_are_not_parked_in_the_examples_file():
+    """
+    Catch a real class pasted into docs/examples instead of the live template.
+
+    The two files are both called events.yaml, so it is easy to edit the wrong one in a
+    web editor - and the symptom is silent: the class simply never appears on Discord.
+    The example hosts are deliberately placeholder names, so any host that also appears
+    in the live schedule is a sign the edit landed in the wrong file.
+    """
+    examples = SCRIPTS_FOLDER.parent / "docs" / "examples"
+    staging = pathlib.Path(tempfile.mkdtemp()) / "sign_language_ksl"
+    staging.mkdir(parents=True)
+
+    (staging / "meta.yaml").write_text((examples / "meta.example.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    (staging / "events.yaml").write_text((examples / "events.example.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+
+    example_lane = loader.load_event_lanes(resolve_webhooks=False, templates_folder=staging.parent)[0]
+    live_lane = loader.find_lane(loader.load_event_lanes(resolve_webhooks=False), "sign_language_ksl")
+
+    example_hosts = {event.host for event in example_lane.events}
+    live_hosts = {event.host for event in live_lane.events}
+    shared = example_hosts & live_hosts
+
+    assert not shared, (
+        f"These hosts appear in BOTH the live schedule and the examples: {sorted(shared)}\n\n"
+        f"  docs/examples/ is never published. If one of these is a real session, move it to\n"
+        f"    templates/sign_language_ksl/events.yaml\n\n"
+        f"  실제 진행자 이름이 예시 파일에 들어가 있습니다. 예시에는 가상의 이름을 써 주세요."
+    )
 
 
 # --- Failure handling ---------------------------------------------------------------------------
@@ -636,7 +731,8 @@ def test_one_failing_lane_does_not_stop_the_others():
         make_webhook_lane("api_error", "http"),
     ]
 
-    delivered = send_webhooks(lanes)
+    with quiet_output():
+        delivered = send_webhooks(lanes)
 
     assert set(delivered) == {"ok_lane"}, delivered
 
@@ -645,7 +741,8 @@ def test_a_deleted_schedule_message_is_reposted():
     from formats.webhook import send_webhooks
 
     lane = make_webhook_lane("deleted", "notfound")
-    delivered = send_webhooks([lane])
+    with quiet_output():
+        delivered = send_webhooks([lane])
 
     assert lane.webhook.sent, "expected a fresh message to be posted after the 404"
     assert delivered["deleted"] == 222
@@ -655,7 +752,8 @@ def test_every_lane_failing_fails_the_build():
     from formats.webhook import send_webhooks
 
     try:
-        send_webhooks([make_webhook_lane("a", "forbidden"), make_webhook_lane("b", "forbidden")])
+        with quiet_output():
+            send_webhooks([make_webhook_lane("a", "forbidden"), make_webhook_lane("b", "forbidden")])
     except RuntimeError:
         return
 
@@ -665,7 +763,8 @@ def test_every_lane_failing_fails_the_build():
 def test_lanes_without_a_webhook_are_skipped_not_failed():
     from formats.webhook import send_webhooks
 
-    assert send_webhooks([make_lane()]) == {}
+    with quiet_output():
+        assert send_webhooks([make_lane()]) == {}
 
 
 def test_a_broken_template_keeps_the_last_good_schedule():
@@ -684,7 +783,11 @@ def test_a_broken_template_keeps_the_last_good_schedule():
 
     service.templates_folder = broken.parent
 
-    assert service.reload() is False
+    # The failure is the point of this test, and the service logs it with a full
+    # traceback. Left on, that traceback lands in every CI run of a passing test and
+    # makes a real failure harder to spot.
+    with quiet_logging("bot.schedule"):
+        assert service.reload() is False
 
     # The bot keeps serving what it had rather than emptying the schedule channel.
     assert service.lanes is good
