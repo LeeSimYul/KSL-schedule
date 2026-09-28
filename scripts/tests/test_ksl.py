@@ -472,17 +472,61 @@ def test_a_session_without_a_class_shows_no_class_line():
 
 
 def test_the_ksl_lane_publishes_japan_time():
+    """
+    Japan time is configured for the lane, and reaches a rendered session.
+
+    This deliberately renders a session of its own rather than whatever falls in the
+    current week. Which sessions land in "this week" depends on the day CI runs, on how
+    many sessions currently exist, and on whether a closure covers them - so a
+    legitimately quiet week would fail a test about timezone configuration. That is
+    exactly what happened over 개천절 2026, when the only two remaining sessions both fell
+    inside the holiday closure and the week rendered with no sessions at all.
+    """
     lanes = loader.load_event_lanes(resolve_webhooks=False)
     ksl = loader.find_lane(lanes, "sign_language_ksl")
 
-    zones = [str(zone.timezone) for zone in embeds.resolve_display_timezones(ksl)]
+    display_timezones = embeds.resolve_display_timezones(ksl)
 
-    assert "Asia/Tokyo" in zones, zones
+    assert "Asia/Tokyo" in [str(zone.timezone) for zone in display_timezones]
 
-    built = embeds.build_weekly_embeds(ksl, lanes)
-    blob = "\n".join(embed.description for embed in built)
+    occurrence = Occurrence(make_event(), datetime.datetime(2026, 9, 16, 20, 0, tzinfo=KST))
+    block = embeds.format_occurrence_block(
+        occurrence,
+        embeds.Localizer(ksl.meta.get("localization", None)),
+        ksl.meta.get("levels", {}),
+        display_timezones,
+        roles=ksl.meta.get("roles", {}),
+    )
 
-    assert "JST" in blob
+    # Seoul and Tokyo are both a fixed UTC+9, so the two lines read the same time.
+    assert "\N{REGIONAL INDICATOR SYMBOL LETTER J}\N{REGIONAL INDICATOR SYMBOL LETTER P}" in block, block
+    assert "08:00 PM JST" in block, block
+    assert "08:00 PM KST" in block, block
+
+
+def test_a_week_with_no_sessions_still_renders():
+    """
+    A quiet week is a valid schedule, not a failure.
+
+    Every session can legitimately fall inside a holiday closure, or be paused between
+    terms. The schedule still has to publish - seven day cards, no crash, no empty
+    message.
+    """
+    lanes = loader.load_event_lanes(resolve_webhooks=False)
+    ksl = loader.find_lane(lanes, "sign_language_ksl")
+
+    # A week far enough out that nothing in the template reaches it is not something we
+    # can arrange, so suppress the sessions instead and keep the lane otherwise real.
+    quiet = EventLane(
+        name=ksl.name, meta=ksl.meta, events=[], webhook=None,
+        webhook_info=None, webhook_message_id=None, closures=ksl.closures,
+    )
+
+    built = embeds.build_weekly_embeds(quiet, [quiet], now=datetime.datetime(2026, 9, 28, 12, 0, tzinfo=KST))
+
+    assert len(built) == 7, "expected one embed per weekday"
+    assert all(embed.description for embed in built), "no day card may be empty"
+    assert embeds.enforce_embed_limits(built) == []
 
 
 def test_the_ksl_lane_uses_only_the_three_official_classes():
