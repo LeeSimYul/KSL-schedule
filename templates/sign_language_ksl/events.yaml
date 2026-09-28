@@ -18,6 +18,28 @@
 # ─────────────────────────────────────────────────────────────────────────────────────
 
 events:
+  # ── 화요일 / Tuesday · 별빛반 ───────────────────────────────────────────────────────
+  - host: Korea_Yujin
+    name: "KSL 별빛반"
+    tags: ["class", "vocabulary"]
+    kind: class
+    level: starlight
+    role: principal
+    title:
+      ko: 별빛반 (단어) · 새벽반
+      en: Starlight Class (Vocabulary) · Early morning
+    description:
+      ko: 일상에서 가장 많이 쓰는 한국수어 단어를 손 모양부터 천천히 익힙니다.
+      en: Everyday Korean Sign Language vocabulary, taken slowly from the handshape up.
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: recommended
+    schedule:
+      basis: "2025-12-02"
+      day: Tuesday
+      hour: 5
+      minute: 00
+      duration: 60
+
   # ── 토요일 / Saturday · 탐험부 ─────────────────────────────────────────────────────
   # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
@@ -69,8 +91,7 @@ events:
 # 'until' 은 끝날 포함이며, 생략하면 하루만 휴무입니다.
 # 음력 공휴일(설날·추석)은 해마다 날짜가 달라지므로 매년 직접 갱신해 주세요.
 closures:
-  - date: "2026-10-03"
-    until: "2026-10-05"
+  - date: "2026-10-05"
     reason:
-      ko: 개천절 연휴 - 운영진 휴무
+      ko: 개천절 - 운영진 휴무
       en: National Foundation Day - staff off
