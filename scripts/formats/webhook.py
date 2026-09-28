@@ -64,13 +64,28 @@ def annotate(level: str, lane_name: str, message: str) -> None:
     emit_annotation(level, f"[{lane_name}] {message}")
 
 
-def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
+class ScheduleMessageMissing(Exception):
+    """
+    There is no schedule message to edit, and posting one was not permitted.
+
+    Raised rather than silently posting: an unattended run that posts whenever it cannot
+    find the stored message leaves a trail of duplicate schedules in the channel, and
+    every duplicate needs a human to notice and delete it.
+    """
+
+
+def deliver_lane(
+    event_lane: EventLane,
+    event_lanes: list[EventLane],
+    allow_create: bool = False,
+) -> int:
     """
     Render and deliver one lane's schedule, returning the message ID it now lives at.
 
-    Editing is preferred over posting so the message keeps its place, its pins and its
-    links - but a message someone deleted can never be edited again, so a 404 falls back
-    to posting a fresh one rather than failing this lane forever.
+    The schedule is a single message that gets edited in place, so it keeps its position
+    in the channel along with any pins and links to it. Posting a new one is therefore a
+    deliberate, one-off act - it is only done when ``allow_create`` says so, which the
+    scheduled build never does.
     """
     weekday_embeds = build_weekly_embeds(event_lane, event_lanes)
 
@@ -79,6 +94,7 @@ def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
 
     view = build_link_buttons(event_lane)
     extra: dict[str, typing.Any] = {} if view is None else {"view": view}
+    secret_name = (event_lane.webhook_info or {}).get('message_id', '<message id secret>')
 
     if event_lane.webhook_message_id:
         try:
@@ -89,30 +105,49 @@ def deliver_lane(event_lane: EventLane, event_lanes: list[EventLane]) -> int:
             )
             return message.id
         except discord.NotFound:
+            if not allow_create:
+                raise ScheduleMessageMissing(
+                    f"Schedule message {event_lane.webhook_message_id} no longer exists, so there "
+                    f"is nothing to edit. Nothing was posted - re-run the workflow manually with "
+                    f"\"allow_create\" enabled to publish a replacement, then update {secret_name}.\n"
+                    f"  기존 시간표 메시지를 찾을 수 없습니다. 중복을 막기 위해 새로 게시하지 "
+                    f"않았습니다. 새 메시지가 필요하면 Actions에서 allow_create 를 켜고 수동 "
+                    f"실행한 뒤 {secret_name} 시크릿을 갱신해 주세요."
+                ) from None
+
             annotate(
                 'warning', event_lane.name,
-                f"Schedule message {event_lane.webhook_message_id} no longer exists - posting a new one. "
-                f"Update the message ID secret to the new value printed below.",
+                f"Schedule message {event_lane.webhook_message_id} no longer exists - "
+                f"posting a replacement because allow_create is enabled.",
             )
+
+    elif not allow_create:
+        raise ScheduleMessageMissing(
+            f"No schedule message to edit: the secret {secret_name} is empty. Nothing was "
+            f"posted, so no duplicate was created. Re-run the workflow manually with "
+            f"\"allow_create\" enabled to publish the first message, then store its ID in "
+            f"{secret_name}.\n"
+            f"  {secret_name} 시크릿이 비어 있습니다. 중복 방지를 위해 새로 게시하지 "
+            f"않았습니다. 첫 메시지를 만들려면 Actions에서 allow_create 를 켜고 수동 실행한 뒤, "
+            f"출력된 ID를 {secret_name} 에 등록해 주세요."
+        )
 
     message = event_lane.webhook.send(embeds=weekday_embeds, wait=True, **extra)
 
-    # Posting is a one-off: every later run should edit this message instead of adding
-    # another one. That only happens once the ID is stored, so the ID is raised as an
-    # annotation - naming the exact secret - rather than logged where it would be missed.
-    secret_name = (event_lane.webhook_info or {}).get('message_id', '<message id secret>')
-
+    # Posting is a one-off: every later run edits this message instead of adding another.
+    # That only happens once the ID is stored, so it is raised as an annotation naming the
+    # exact secret, rather than logged where it would scroll past.
     annotate(
         'notice', event_lane.name,
         f"Posted a NEW schedule message: {message.id} - "
-        f"set the secret {secret_name}={message.id} so future runs edit it instead of "
+        f"set the secret {secret_name}={message.id} now, so future runs edit it instead of "
         f"posting another copy.",
     )
 
     return message.id
 
 
-def send_webhooks(event_lanes: list[EventLane]) -> dict:
+def send_webhooks(event_lanes: list[EventLane], allow_create: bool = False) -> dict:
     """
     Deliver every configured lane, in isolation from one another.
 
@@ -122,6 +157,10 @@ def send_webhooks(event_lanes: list[EventLane]) -> dict:
     reason to abandon the manifest either - the VRChat side reads ``old.json`` and does
     not care whether Discord accepted the embeds. So failures are annotated loudly and the
     build continues, unless every single lane failed, which means something systemic.
+
+    ``allow_create`` permits posting a schedule message where there is none to edit. It
+    stays off for scheduled and push-triggered runs, so an unattended build can never add
+    a second copy of the schedule to the channel.
     """
     lane_messages = {}
     attempted = 0
@@ -135,7 +174,10 @@ def send_webhooks(event_lanes: list[EventLane]) -> dict:
         attempted += 1
 
         try:
-            lane_messages[event_lane.name] = deliver_lane(event_lane, event_lanes)
+            lane_messages[event_lane.name] = deliver_lane(event_lane, event_lanes, allow_create)
+        except ScheduleMessageMissing as error:
+            failures.append(event_lane.name)
+            annotate('error', event_lane.name, str(error))
         except discord.Forbidden:
             failures.append(event_lane.name)
             annotate(

@@ -153,7 +153,10 @@ python scripts/build_manifests.py --no-send --preview
 python scripts/tests/test_ksl.py
 ```
 
-`main` 에 푸시하면 GitHub Actions가 자동으로 디스코드 `#schedule` 메시지를 갱신합니다.
+`main` 에 푸시하면 GitHub Actions가 디스코드 `#schedule` 메시지를 **수정**합니다.
+시간표는 메시지 하나를 계속 편집하는 방식이라, 자동 실행은 새 메시지를 절대 만들지
+않습니다 — 첫 게시나 삭제된 메시지 복구는 `Run workflow` 에서 `allow_create` 를 켠
+수동 실행으로만 합니다 ([DEPLOYMENT.md 1-4](docs/DEPLOYMENT.md)).
 모든 설정 항목이 주석과 함께 채워진 예시는 `docs/examples/` 에 있습니다.
 
 ---

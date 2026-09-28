@@ -56,57 +56,47 @@ Warning: no webhook URL found for sign_language_asl
 
 ### 1-4. `MESSAGE_ID` 채우는 순서
 
-`KSL_SCHEDULE_MESSAGE_ID` 가 비어 있으면 **실행할 때마다 새 메시지가 하나씩 생깁니다.**
-1회차 실행 후 바로 채워 넣는 것이 좋습니다.
+시간표는 **메시지 하나를 계속 수정**하는 방식입니다. 그래서 빌드는 기본적으로 **수정만
+하고, 새 메시지는 절대 만들지 않습니다.** 편집할 메시지를 못 찾으면 조용히 새로 올리는
+대신 **빌드를 실패시킵니다** — 자동 실행이 채널에 중복 시간표를 쌓지 않게 하기 위해서입니다.
 
-#### 방법 A — Actions 로그에서 (2회차부터 권장)
+새 메시지 게시는 `allow_create` 를 켠 **수동 실행에서만** 일어납니다.
 
-빌드가 새 메시지를 게시하면 `Annotations` 패널에 ID가 그대로 뜹니다.
+#### 첫 메시지 만들기 (또는 실수로 지웠을 때)
 
-```
-::notice::[sign_language_ksl] Posted a NEW schedule message: 1420983112345678901 -
-set the secret KSL_SCHEDULE_MESSAGE_ID=1420983112345678901 so future runs edit it
-instead of posting another copy.
-```
+1. `Actions` → `Build schedule manifests` → `Run workflow`
+2. **`Post a new schedule message...` 체크박스를 켭니다** (`allow_create`)
+3. `Run workflow` 실행
+4. `Annotations` 패널에 ID가 뜹니다.
+   ```
+   ::notice::[sign_language_ksl] Posted a NEW schedule message: 1554067808772563053 -
+   set the secret KSL_SCHEDULE_MESSAGE_ID=1554067808772563053 now, ...
+   ```
+5. `Settings` → `Secrets and variables` → `Actions` → `New repository secret`
+   - Name: `KSL_SCHEDULE_MESSAGE_ID`
+   - Secret: 그 숫자 **(숫자만. 따옴표·공백 금지)**
 
-#### 방법 B — 디스코드에서 직접 복사 (이미 게시된 메시지)
+#### 디스코드에서 직접 복사하는 방법
 
-로그를 놓쳤거나 이전 버전으로 게시된 메시지라면 디스코드에서 직접 가져옵니다.
+이미 올라가 있는 메시지의 ID를 쓰려면:
 
 1. 디스코드 `사용자 설정` → `고급` → **`개발자 모드` 켜기**
-2. `#schedule` 채널에서 시간표 메시지에 마우스를 올린 뒤 `⋯` → **`메시지 ID 복사`**
-   (모바일이라면 메시지를 길게 눌러 `ID 복사`)
-3. 18~19자리 숫자가 복사됩니다. 예: `1420983112345678901`
+2. `#schedule` 의 시간표 메시지 `⋯` → **`메시지 ID 복사`**
+   (모바일은 길게 눌러 `ID 복사`)
 
-#### 등록
-
-1. `Settings` → `Secrets and variables` → `Actions`
-2. `New repository secret`
-   - Name: `KSL_SCHEDULE_MESSAGE_ID`
-   - Secret: 복사한 숫자 **(숫자만. 따옴표·공백·`<>` 금지)**
-3. `Add secret`
+> **웹훅은 자기가 보낸 메시지만 수정할 수 있습니다.** 사람이 올린 메시지나 다른 웹훅의
+> 메시지 ID를 넣으면 수정에 실패합니다. 반드시 **이 워크플로가 게시한 메시지**여야 합니다.
 
 #### 확인
 
-`Actions` → `Build schedule manifests` → `Run workflow` 로 한 번 더 실행합니다.
+`Run workflow` 를 **체크박스를 끈 채로** 한 번 더 실행합니다.
 
-- ✅ **정상**: 디스코드에 새 메시지가 생기지 않고 **기존 메시지 내용이 바뀝니다.**
-  로그에 `Posted a NEW schedule message` 주석이 **뜨지 않습니다.**
-- ❌ 새 메시지가 또 생겼다면 → 시크릿 이름 철자, 숫자에 섞인 공백을 확인하세요.
-- ❌ `no existing webhook message ID found` 경고가 계속 뜬다면 → 시크릿이 저장되지
-  않았거나 이름이 다릅니다.
-
-> **웹훅은 자기가 보낸 메시지만 수정할 수 있습니다.** 사람이 올린 메시지나 다른 웹훅이
-> 올린 메시지의 ID를 넣으면 수정에 실패합니다. 반드시 **이 워크플로가 게시한 메시지**의
-> ID여야 합니다.
->
-> 그 메시지를 누군가 삭제하더라도 빌드는 실패하지 않습니다 — 새로 게시하고 새 ID를
-> 주석으로 알려 주므로, 시크릿만 갱신하면 됩니다.
-
-#### 중복 메시지 정리
-
-시크릿을 넣기 전에 여러 번 실행해서 메시지가 여러 개 쌓였다면, **가장 최근 것 하나만
-남기고** 나머지는 디스코드에서 삭제한 뒤 남긴 메시지의 ID를 등록하세요.
+- ✅ **정상**: 새 메시지가 생기지 않고 기존 메시지 내용만 바뀝니다. 로그에
+  `Posted a NEW schedule message` 가 **뜨지 않습니다.**
+- ❌ `the secret KSL_SCHEDULE_MESSAGE_ID is empty` 로 실패 → 시크릿이 저장되지 않았거나
+  이름 철자가 다릅니다. **이때도 중복 메시지는 생기지 않습니다.**
+- ❌ `Schedule message ... no longer exists` 로 실패 → 그 메시지가 삭제됐습니다.
+  위의 `allow_create` 절차로 다시 만들고 시크릿을 갱신하세요.
 
 ### 1-5. 토큰이 유출되었다면
 
@@ -390,8 +380,9 @@ python scripts/build_manifests.py --no-send --preview  # 디스코드 전송 없
 
 | 상황 | 동작 |
 |---|---|
-| 웹훅 시크릿 없음 | 경고 후 해당 레인만 건너뜀, 빌드 성공 |
-| 시간표 메시지가 삭제됨 | 새로 게시하고 새 ID를 로그에 출력 |
+| 웹훅 URL 시크릿 없음 | 경고 후 해당 레인만 건너뜀, 빌드 성공 |
+| MESSAGE_ID 시크릿 없음 | **새로 게시하지 않고 빌드 실패** (중복 방지) |
+| 시간표 메시지가 삭제됨 | **새로 게시하지 않고 빌드 실패.** `allow_create` 수동 실행으로만 복구 |
 | 웹훅이 폐기됨 (403) | `::error::` 주석을 남기고 **다른 레인은 계속 진행** |
 | Rate limit (429) / 서버 오류 (5xx) | discord.py가 자동 재시도 (최대 5회) |
 | 모든 레인 실패 | 빌드 실패 — 시크릿이나 네트워크 문제 신호 |

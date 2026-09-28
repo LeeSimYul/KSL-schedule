@@ -5,6 +5,7 @@ Manifest build script.
 """
 
 import contextlib
+import functools
 import json
 import typing
 
@@ -76,7 +77,16 @@ def generate_preview(event_lanes) -> dict:
     default=True,
     help="Deliver the schedule to the configured webhooks. Use --no-send for a dry run.",
 )
-def main(preview: bool, send: bool):
+@click.option(
+    '--allow-create/--no-allow-create',
+    default=False,
+    help=(
+        "Permit posting a schedule message where there is none to edit. Off by default so "
+        "an unattended run can never add a second copy of the schedule to the channel; "
+        "turn it on for the one-off first post, or to replace a deleted message."
+    ),
+)
+def main(preview: bool, send: bool, allow_create: bool):
     click.secho("Reading event lane templates...", fg='blue')
 
     try:
@@ -100,7 +110,16 @@ def main(preview: bool, send: bool):
     ]
 
     if send:
-        output_formats.append((send_webhooks, "webhook.json", True))
+        output_formats.append(
+            (functools.partial(send_webhooks, allow_create=allow_create), "webhook.json", True),
+        )
+
+        if allow_create:
+            annotate(
+                'warning',
+                "allow_create is enabled: a lane with no schedule message to edit will have "
+                "one posted. Store the new ID in its secret straight away.",
+            )
     else:
         click.secho("Skipping webhook delivery (--no-send)", fg='yellow')
 

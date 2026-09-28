@@ -762,7 +762,11 @@ def make_webhook_lane(name, mode, message_id=999):
 
     return EventLane(
         name=name, meta=lane.meta, events=lane.events,
-        webhook=FakeWebhook(mode), webhook_info={}, webhook_message_id=message_id,
+        webhook=FakeWebhook(mode),
+        # Carries the real secret name, so the failure messages under test name the
+        # variable an operator actually has to go and set.
+        webhook_info={"url": "KSL_SCHEDULE_WEBHOOK_URL", "message_id": "KSL_SCHEDULE_MESSAGE_ID"},
+        webhook_message_id=message_id,
     )
 
 
@@ -781,15 +785,91 @@ def test_one_failing_lane_does_not_stop_the_others():
     assert set(delivered) == {"ok_lane"}, delivered
 
 
-def test_a_deleted_schedule_message_is_reposted():
+def test_nothing_is_posted_when_there_is_no_message_to_edit():
+    """
+    The schedule is one message that gets edited, not a stream of new ones.
+
+    An unattended run that posts whenever it cannot find the stored message leaves
+    duplicate schedules in the channel, and every one needs a human to notice and delete
+    it. So a missing ID fails the run loudly instead.
+    """
+    from formats.webhook import send_webhooks
+
+    lane = make_webhook_lane("no_id", "ok", message_id=None)
+
+    try:
+        with quiet_output():
+            send_webhooks([lane])
+    except RuntimeError:
+        pass
+
+    assert not lane.webhook.sent, "nothing may be posted without allow_create"
+
+
+def test_a_deleted_message_is_not_silently_replaced():
     from formats.webhook import send_webhooks
 
     lane = make_webhook_lane("deleted", "notfound")
+
+    try:
+        with quiet_output():
+            send_webhooks([lane])
+    except RuntimeError:
+        pass
+
+    assert not lane.webhook.sent, "a 404 must not quietly become a second schedule"
+
+
+def test_the_failure_explains_how_to_publish_deliberately():
+    from formats.webhook import deliver_lane, ScheduleMessageMissing
+
+    lane = make_webhook_lane("no_id", "ok", message_id=None)
+
+    try:
+        deliver_lane(lane, [lane])
+    except ScheduleMessageMissing as error:
+        message = str(error)
+        assert "allow_create" in message, message
+        assert "KSL_SCHEDULE_MESSAGE_ID" in message, message
+        return
+
+    raise AssertionError("Expected ScheduleMessageMissing")
+
+
+def test_allow_create_publishes_the_first_message():
+    from formats.webhook import send_webhooks
+
+    lane = make_webhook_lane("first_post", "ok", message_id=None)
+
+    with quiet_output():
+        delivered = send_webhooks([lane], allow_create=True)
+
+    assert lane.webhook.sent
+    assert delivered["first_post"] == 222
+
+
+def test_allow_create_replaces_a_deleted_message():
+    from formats.webhook import send_webhooks
+
+    lane = make_webhook_lane("deleted", "notfound")
+
+    with quiet_output():
+        delivered = send_webhooks([lane], allow_create=True)
+
+    assert lane.webhook.sent
+    assert delivered["deleted"] == 222
+
+
+def test_an_existing_message_is_edited_never_reposted():
+    from formats.webhook import send_webhooks
+
+    lane = make_webhook_lane("normal", "ok")
+
     with quiet_output():
         delivered = send_webhooks([lane])
 
-    assert lane.webhook.sent, "expected a fresh message to be posted after the 404"
-    assert delivered["deleted"] == 222
+    assert not lane.webhook.sent, "the normal path must edit, not post"
+    assert delivered["normal"] == 111
 
 
 def test_every_lane_failing_fails_the_build():

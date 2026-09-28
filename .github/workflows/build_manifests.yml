@@ -16,7 +16,15 @@ on:
     #  5am in its default timezone, so running the jobs at these times allows the event schedule to be properly
     #  updated before any events would realistically happen in any of the given lanes.
     - cron: "17 0,11 * * 1"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      allow_create:
+        description: >-
+          Post a new schedule message when there is none to edit. Leave this off for
+          normal runs - it exists for the very first post, or to replace a message that
+          was deleted. Remember to store the new ID in the lane's MESSAGE_ID secret.
+        type: boolean
+        default: false
 
 # The only thing this workflow writes is the generated manifest on the deploy branch.
 # Declaring it explicitly means the job still works when the repository's default token
@@ -74,7 +82,11 @@ jobs:
           LSF_SCHEDULE_MESSAGE_ID: ${{ secrets.LSF_SCHEDULE_MESSAGE_ID }}
 
         run: |
-          python scripts/build_manifests.py
+          # Scheduled and push-triggered runs only ever edit the existing schedule
+          # message. Posting a new one is opt-in, so an unattended build can never leave
+          # a second copy of the schedule in the channel.
+          python scripts/build_manifests.py \
+            ${{ inputs.allow_create && '--allow-create' || '--no-allow-create' }}
 
       - name: Transfer manifests to deploy branch
         shell: bash
