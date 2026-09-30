@@ -12,6 +12,7 @@ Runnable two ways, so nobody needs a test runner installed to check their change
 import asyncio
 import contextlib
 import datetime
+import json
 import pathlib
 import sys
 import tempfile
@@ -268,8 +269,11 @@ def test_closure_parsing_rejects_a_backwards_range():
     raise AssertionError("Expected a ValueError for a closure that ends before it starts")
 
 
-def test_recharging_day_replaces_the_day_and_suppresses_its_classes():
-    # The class is on Wednesday; the closure covers that Wednesday.
+def test_recharging_day_replaces_the_day_and_lists_what_is_off():
+    """
+    A closed day gets the Recharging Day card, and the card names the sessions that are
+    off - struck through, never as if they were running.
+    """
     closure = EventLaneClosure(
         datetime.date(2026, 9, 16), datetime.date(2026, 9, 16),
         reason={"ko": "추석 연휴", "en": "Chuseok holiday"},
@@ -277,19 +281,30 @@ def test_recharging_day_replaces_the_day_and_suppresses_its_classes():
     lane = make_lane(closures=[closure])
     now = datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST)
 
-    built = embeds.build_weekly_embeds(lane, [lane], now=now)
-    wednesday = built[2]
+    wednesday = embeds.build_weekly_embeds(lane, [lane], now=now)[2]
 
     assert wednesday.colour == embeds.RECHARGE_COLOUR
     assert embeds.RECHARGE_EMOJI in wednesday.description
     assert "재충전의 날" in wednesday.description
     assert "추석 연휴" in wednesday.description
-    # The class itself must not also be listed.
-    assert "별빛반" not in wednesday.description
+    # Named as off...
+    assert "이날 쉬는 수업" in wednesday.description
+    assert "~~별빛반 (단어) · Starlight Class (Vocabulary)~~" in wednesday.description
+    # ...and not rendered as a running session: no host line, no timezone block.
+    assert "진행자" not in wednesday.description
+    assert "KST" not in wednesday.description
 
 
-def test_a_lane_closure_removes_its_events_from_an_aggregated_schedule():
-    ksl = make_lane(closures=[EventLaneClosure(datetime.date(2026, 9, 16), datetime.date(2026, 9, 16))])
+def test_a_closed_lanes_sessions_show_as_cancelled_on_an_aggregated_schedule():
+    """
+    The combined server schedule has no closure of its own, so the day stays a normal
+    day - but the closed lane's session is marked cancelled there rather than silently
+    missing, which is the confusion this whole mechanism exists to prevent.
+    """
+    ksl = make_lane(closures=[EventLaneClosure(
+        datetime.date(2026, 9, 16), datetime.date(2026, 9, 16),
+        reason={"ko": "추석 연휴", "en": "Chuseok holiday"},
+    )])
     globals_lane = EventLane(
         name="server_global",
         meta={"channels": {}, "default_timezone": "Asia/Seoul", "use_all_events": True},
@@ -300,13 +315,255 @@ def test_a_lane_closure_removes_its_events_from_an_aggregated_schedule():
     )
     now = datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST)
 
-    built = embeds.build_weekly_embeds(globals_lane, [globals_lane, ksl], now=now)
-    wednesday = built[2]
+    wednesday = embeds.build_weekly_embeds(globals_lane, [globals_lane, ksl], now=now)[2]
 
-    # The global lane has no closure of its own, so the day is a normal day...
     assert wednesday.colour != embeds.RECHARGE_COLOUR
-    # ...but the closed lane's class is still gone from it.
-    assert "별빛반" not in wednesday.description
+    # The global lane is single-language English, so look for the English rendering.
+    assert "[Cancelled]" in wednesday.description, wednesday.description
+    assert "~~Starlight Class (Vocabulary)~~" in wednesday.description
+    assert "Reason: Chuseok holiday" in wednesday.description
+    assert "EDT" not in wednesday.description and "UTC" not in wednesday.description, (
+        "a cancelled session must not render the full timezone block"
+    )
+
+
+def test_a_closure_is_read_in_the_timezone_it_was_written_in():
+    """
+    A Korean holiday is a Korean date, even on a schedule displayed in New York time.
+
+    Regression: a 05:00 KST Tuesday class is 16:00 Monday in New York. With the closure
+    on that Monday, the combined schedule used to compare it against the New York date,
+    decide the class fell on the holiday, and hide a class that was actually running.
+    """
+    early = make_event(
+        basis=datetime.datetime(2026, 10, 6, 5, 0, tzinfo=KST),   # Tuesday 05:00 KST
+        title={"ko": "별빛반 새벽반", "en": "Starlight Early"},
+    )
+    ksl = make_lane(events=[early], closures=[EventLaneClosure(
+        datetime.date(2026, 10, 5), datetime.date(2026, 10, 5),   # Monday, in Korea
+    )])
+    new_york = ZoneInfo("America/New_York")
+    globals_lane = EventLane(
+        name="server_global",
+        meta={"channels": {}, "default_timezone": "America/New_York", "use_all_events": True},
+        events=[], webhook=None, webhook_info=None, webhook_message_id=None,
+    )
+
+    schedule = embeds.collect_week(
+        globals_lane, [globals_lane, ksl], now=datetime.datetime(2026, 10, 5, 12, 0, tzinfo=new_york),
+    )
+    running = [occurrence for day in schedule.active.values() for occurrence in day]
+    cancelled = [item for day in schedule.cancelled.values() for item in day]
+
+    assert [o.event.title["en"] for o in running] == ["Starlight Early"], (running, cancelled)
+    assert not cancelled
+
+
+# --- Pausing a session -------------------------------------------------------------------
+
+WEDNESDAY = datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST)   # a now inside that week
+
+
+def rendered_wednesday(event) -> str:
+    lane = make_lane(events=[event])
+    return embeds.build_weekly_embeds(lane, [lane], now=WEDNESDAY)[2].description
+
+
+def test_a_bare_pause_still_hides_the_session_entirely():
+    """
+    `paused: true` with no reason keeps its old meaning.
+
+    Other lanes have sessions paused this way for over a year; announcing them would put
+    a "cancelled" line on every week's schedule indefinitely.
+    """
+    description = rendered_wednesday(make_event(paused=True))
+
+    assert "별빛반" not in description
+    assert "휴강" not in description
+    assert "이 날은 일정이 없습니다" in description
+
+
+def test_a_pause_with_a_reason_stays_on_the_schedule_marked_cancelled():
+    description = rendered_wednesday(make_event(
+        paused=True,
+        pause_reason={"ko": "담임선생님 개인 사정", "en": "Teacher unavailable"},
+    ))
+
+    assert "🚫 **[휴강 · Cancelled]** ~~별빛반 (단어) · Starlight Class (Vocabulary)~~" in description, description
+    assert "사유 · Reason: 담임선생님 개인 사정 · Teacher unavailable" in description
+    # Still identifiable as *that* slot, in each reader's own timezone...
+    assert "<t:1789556400:f>" in description
+    assert "Korea_Yujin" in description
+    # ...but none of the running-class furniture.
+    assert "(<t:1789556400:R>)" not in description, "no countdown to a session that is off"
+    assert "PCVR" not in description
+    assert "[별빛반 - 단어" not in description
+    assert "이 날은 일정이 없습니다" not in description, "the day is not empty - the class is off"
+
+
+def test_a_cancelled_session_cannot_be_signed_up_for():
+    """The bot's RSVP and reminder buttons only ever offer sessions that will run."""
+    event = make_event(paused=True, pause_reason={"ko": "휴강"})
+    lane = make_lane(events=[event])
+
+    _, active = embeds.collect_week_occurrences(lane, [lane], now=WEDNESDAY)
+    schedule = embeds.collect_week(lane, [lane], now=WEDNESDAY)
+
+    assert not any(active.values())
+    assert [item.cause for day in schedule.cancelled.values() for item in day] == ["paused"]
+
+
+def test_a_temporary_pause_ends_by_itself():
+    """paused_until pauses sessions on or before the date, then the class simply resumes."""
+    event = make_event(
+        paused_until=datetime.date(2026, 9, 23),
+        pause_reason={"ko": "담임선생님 출장", "en": "Teacher away"},
+    )
+    lane = make_lane(events=[event])
+
+    def state(now):
+        schedule = embeds.collect_week(lane, [lane], now=now)
+        if any(schedule.active.values()):
+            return "running"
+        if any(schedule.cancelled.values()):
+            return "cancelled"
+        return "hidden"
+
+    assert state(datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST)) == "cancelled"   # Wed 9/16
+    assert state(datetime.datetime(2026, 9, 22, 12, 0, tzinfo=KST)) == "cancelled"   # Wed 9/23, the last day
+    assert state(datetime.datetime(2026, 9, 29, 12, 0, tzinfo=KST)) == "running"     # Wed 9/30, back
+
+
+def test_a_dated_pause_wins_over_paused_true():
+    """Writing both must not leave the class switched off after the intended date."""
+    event = make_event(paused=True, paused_until=datetime.date(2026, 9, 23))
+
+    assert event.is_paused_on(datetime.date(2026, 9, 23))
+    assert not event.is_paused_on(datetime.date(2026, 9, 30))
+
+
+def test_the_next_real_session_skips_a_temporary_pause():
+    """What old.json publishes as the next session must be the one that will run."""
+    event = make_event(paused_until=datetime.date(2026, 9, 23))
+    after = datetime.datetime(2026, 9, 14, 0, 0, tzinfo=KST)
+
+    assert event.next_occurrence_after(after) == datetime.datetime(2026, 9, 30, 20, 0, tzinfo=KST)
+    assert make_event(paused=True).next_occurrence_after(after) is None
+
+
+def test_the_resume_date_is_shown_only_while_it_is_still_ahead():
+    reason = {"ko": "출장", "en": "Away"}
+
+    description = rendered_wednesday(make_event(paused_until=datetime.date(2026, 9, 30), pause_reason=reason))
+    assert "2026-09-30까지 쉬고, 그다음 수업부터 정상 진행합니다 · Resumes after 2026-09-30" in description
+
+    # The last paused session itself: "off until today" would be noise.
+    description = rendered_wednesday(make_event(paused_until=datetime.date(2026, 9, 16), pause_reason=reason))
+    assert "Resumes after" not in description
+
+
+def test_a_closure_can_carry_its_own_message():
+    custom = EventLaneClosure(
+        datetime.date(2026, 9, 16), datetime.date(2026, 9, 16),
+        note={"ko": "이번 주는 재충전의 날입니다. 다음 주에 만나요!", "en": "See you next week!"},
+    )
+    plain = EventLaneClosure(datetime.date(2026, 9, 16), datetime.date(2026, 9, 16))
+
+    def card(closure):
+        lane = make_lane(closures=[closure])
+        return embeds.build_weekly_embeds(lane, [lane], now=WEDNESDAY)[2].description
+
+    assert "이번 주는 재충전의 날입니다. 다음 주에 만나요!" in card(custom)
+    assert "오늘은 수업을 쉽니다" not in card(custom), "a custom note replaces the default"
+    assert "오늘은 수업을 쉽니다" in card(plain), "no note falls back to the default"
+
+
+def test_a_closure_without_a_reason_still_explains_itself_elsewhere():
+    ksl = make_lane(closures=[EventLaneClosure(datetime.date(2026, 9, 16), datetime.date(2026, 9, 16))])
+    globals_lane = EventLane(
+        name="server_global",
+        meta={"channels": {}, "default_timezone": "Asia/Seoul", "use_all_events": True},
+        events=[], webhook=None, webhook_info=None, webhook_message_id=None,
+    )
+
+    wednesday = embeds.build_weekly_embeds(globals_lane, [globals_lane, ksl], now=WEDNESDAY)[2]
+
+    assert "Reason: Recharging Day" in wednesday.description, wednesday.description
+
+
+def test_pause_fields_load_from_yaml():
+    folder = pathlib.Path(tempfile.mkdtemp()) / "sign_language_ksl"
+    folder.mkdir(parents=True)
+    (folder / "meta.yaml").write_text(
+        (SCRIPTS_FOLDER.parent / "templates" / "sign_language_ksl" / "meta.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (folder / "events.yaml").write_text(
+        "events:\n"
+        "  - host: ExampleTeacher\n"
+        "    name: KSL\n"
+        "    tags: [class]\n"
+        "    paused: true\n"
+        "    pause_reason: { ko: 출장, en: Away }\n"
+        "    paused_until: \"2026-10-20\"\n"
+        "    schedule: { basis: \"2025-12-02\", day: Tuesday, hour: 5, minute: 0 }\n"
+        "closures:\n"
+        "  - date: \"2026-10-05\"\n"
+        "    reason: { ko: 개천절 }\n"
+        "    note: { ko: 다음 주에 만나요 }\n",
+        encoding="utf-8",
+    )
+
+    lane = loader.load_event_lanes(resolve_webhooks=False, templates_folder=folder.parent)[0]
+
+    assert lane.events[0].pause_reason == {"ko": "출장", "en": "Away"}
+    assert lane.events[0].paused_until == datetime.date(2026, 10, 20)
+    assert lane.closures[0].note == {"ko": "다음 주에 만나요"}
+
+
+def test_a_malformed_resume_date_is_rejected_by_the_schema():
+    import jsonschema
+
+    schema = json.loads((SCRIPTS_FOLDER.parent / "schema" / "template_events.schema.json").read_text(encoding="utf-8"))
+    event = {
+        "host": "A", "name": "B", "tags": [], "paused_until": "10월 20일",
+        "schedule": {"basis": "2025-12-02", "day": "Tuesday", "hour": 5, "minute": 0},
+    }
+
+    try:
+        jsonschema.validate({"events": [event]}, schema)
+    except jsonschema.ValidationError:
+        return
+
+    raise AssertionError("expected a non-ISO paused_until to be rejected")
+
+
+def test_no_reminder_is_sent_for_a_session_that_is_off():
+    from bot.schedule import ScheduleService
+
+    service = ScheduleService()
+    running = make_event()
+    paused = make_event(paused=True)                                   # hidden pause is still off
+    closed_day = datetime.datetime(2026, 9, 16, 20, 0, tzinfo=KST)
+
+    service.lanes = [make_lane(events=[running, paused])]
+    assert not service.is_cancelled(Occurrence(running, closed_day))
+    assert service.is_cancelled(Occurrence(paused, closed_day))
+
+    service.lanes = [make_lane(events=[running], closures=[
+        EventLaneClosure(datetime.date(2026, 9, 16), datetime.date(2026, 9, 16)),
+    ])]
+    assert service.is_cancelled(Occurrence(running, closed_day))
+
+
+def test_the_live_ksl_schedule_announces_every_pause_it_makes_visible():
+    """Guards the templates themselves: an announced pause must carry text to show."""
+    lanes = loader.load_event_lanes(resolve_webhooks=False)
+
+    for lane in lanes:
+        for event in lane.events:
+            if event.pause_reason:
+                assert any(text.strip() for text in event.pause_reason.values()), (lane.name, event.name)
 
 
 # --- Week window --------------------------------------------------------------------------

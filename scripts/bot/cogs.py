@@ -149,6 +149,10 @@ class ReminderSender(commands.Cog):
             log.info("Reminder %s refers to an event that no longer exists", reminder.occurrence_key)
             return
 
+        if self.bot.service.is_cancelled(occurrence):
+            log.info("Not reminding %s: session %s is off", reminder.user_id, reminder.occurrence_key)
+            return
+
         user = self.bot.get_user(reminder.user_id) or await self.bot.fetch_user(reminder.user_id)
         localizer = Localizer(lane.meta.get("localization", None))
         minutes = self.bot.config.reminder_lead_minutes

@@ -12,6 +12,7 @@ import dataclasses
 import datetime
 import hashlib
 import typing
+from zoneinfo import ZoneInfo
 
 import discord
 
@@ -132,6 +133,11 @@ class EventLaneRawEvent(typing.TypedDict):
     name: str
     tags: list[str]
     paused: typing.NotRequired[bool]
+    #: When given, a paused session stays on the schedule marked as cancelled, with
+    #: this reason, instead of disappearing.
+    pause_reason: typing.NotRequired[LocalizedText]
+    #: Last day of a temporary pause (inclusive). The session resumes on its own after.
+    paused_until: typing.NotRequired[str]
     schedule: EventLaneRawEventSchedule
     kind: typing.NotRequired[EventKind]
     title: typing.NotRequired[LocalizedText]
@@ -151,6 +157,8 @@ class EventLaneRawClosure(typing.TypedDict):
     date: str
     until: typing.NotRequired[str]
     reason: typing.NotRequired[LocalizedText]
+    #: Replaces the lane's default "classes are off today" line for this closure only.
+    note: typing.NotRequired[LocalizedText]
 
 
 class EventLaneRawEvents(typing.TypedDict):
@@ -165,6 +173,7 @@ class EventLaneClosure:
     start: datetime.date
     end: datetime.date
     reason: LocalizedText = dataclasses.field(default_factory=dict)
+    note: LocalizedText = dataclasses.field(default_factory=dict)
 
     def covers(self, day: datetime.date) -> bool:
         return self.start <= day <= self.end
@@ -195,6 +204,12 @@ class EventLaneEvent:
     vrchat: EventLaneVRChatInfo = dataclasses.field(default_factory=dict)
     duration: int = 60
     rsvp: bool = False
+    #: Why the session is paused. Its presence is what keeps a paused session visible
+    #: on the schedule, marked as cancelled - see :attr:`announces_pause`.
+    pause_reason: LocalizedText = dataclasses.field(default_factory=dict)
+    #: Last paused day, inclusive, in the event's own timezone. ``None`` with ``paused``
+    #: set means paused until someone turns it back on.
+    paused_until: datetime.date | None = None
 
     @property
     def key(self) -> str:
@@ -212,11 +227,13 @@ class EventLaneEvent:
 
         return digest.hexdigest()
 
-    def next_occurrence_after(self, target: datetime.datetime) -> typing.Optional[datetime.datetime]:
-        # If paused, no next occurrence
-        if self.paused:
-            return None
+    def next_scheduled_after(self, target: datetime.datetime) -> datetime.datetime:
+        """
+        The next slot this event is scheduled for, whether or not it is paused.
 
+        Arithmetic on an aware datetime keeps the wall-clock time, so a 21:00 class stays
+        at 21:00 local time across daylight saving changes.
+        """
         # Calculate the amount of days that have passed since the basis
         days_since_basis = (target - self.basis).days
         # Start search from floored interval from basis
@@ -224,6 +241,47 @@ class EventLaneEvent:
         needle = self.basis + datetime.timedelta(days=starting_day_offset)
 
         while needle < target:
+            needle += datetime.timedelta(days=self.interval)
+
+        return needle
+
+    def local_date(self, moment: datetime.datetime) -> datetime.date:
+        """The calendar date of ``moment`` in this event's own timezone."""
+        return moment.astimezone(ZoneInfo(self.timezone)).date()
+
+    def is_paused_on(self, day: datetime.date) -> bool:
+        """
+        Whether the session that falls on ``day`` is paused.
+
+        ``paused_until`` wins over ``paused``: a dated pause is temporary even when
+        ``paused: true`` is also set, so writing both never leaves a class switched off
+        after the date the author meant it to come back.
+        """
+        if self.paused_until is not None:
+            return day <= self.paused_until
+
+        return self.paused
+
+    @property
+    def announces_pause(self) -> bool:
+        """
+        Whether a paused session stays on the schedule, marked as cancelled.
+
+        Keyed on the reason rather than on the pause, so that every lane which already
+        uses a bare ``paused: true`` - some of them for over a year - keeps hiding those
+        sessions exactly as before, instead of listing them as cancelled every week.
+        """
+        return bool(self.pause_reason)
+
+    def next_occurrence_after(self, target: datetime.datetime) -> typing.Optional[datetime.datetime]:
+        """The next session that will actually run, skipping any that are paused."""
+        needle = self.next_scheduled_after(target)
+
+        while self.is_paused_on(self.local_date(needle)):
+            # Paused with no end date: nothing to look forward to.
+            if self.paused_until is None:
+                return None
+
             needle += datetime.timedelta(days=self.interval)
 
         return needle
@@ -255,3 +313,26 @@ class Occurrence:
     def key(self) -> str:
         """Identifies this *occurrence*, as opposed to the recurring event behind it."""
         return f"{self.event.key}:{int(self.starts_at.timestamp())}"
+
+
+@dataclasses.dataclass(frozen=True)
+class CancelledOccurrence:
+    """
+    A session that was due in the displayed week but is not happening.
+
+    Kept rather than dropped so the schedule can say so. A session that simply vanishes
+    reads to a student exactly like a bug in the schedule; one marked as cancelled, with
+    a reason, does not.
+    """
+
+    occurrence: Occurrence
+    #: ``closure`` when the lane is closed that day, ``paused`` when the session itself
+    #: is paused.
+    cause: typing.Literal["closure", "paused"]
+    reason: LocalizedText = dataclasses.field(default_factory=dict)
+    #: Last day off, when known - the end of the closure, or ``paused_until``.
+    until: datetime.date | None = None
+
+    @property
+    def starts_at(self) -> datetime.datetime:
+        return self.occurrence.starts_at

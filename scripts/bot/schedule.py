@@ -12,11 +12,12 @@ import datetime
 import logging
 import pathlib
 import typing
+from zoneinfo import ZoneInfo
 
 import discord
 
 from definitions import EventLane, EventLaneEvent, Occurrence
-from embeds import Localizer, collect_week_occurrences, week_window
+from embeds import CancelledOccurrence, Localizer, classify_occurrence, collect_week_occurrences, week_window
 from loader import TEMPLATES_FOLDER, load_event_lanes
 
 
@@ -193,6 +194,27 @@ class ScheduleService:
                 return occurrence
 
         return None
+
+    def is_cancelled(self, occurrence: Occurrence) -> bool:
+        """
+        Whether this session is off - paused, or on a day its lane is closed.
+
+        Asked again at the moment a reminder is due rather than when it was requested,
+        because a class can be paused or a holiday added in between, and a "your class
+        starts in 15 minutes" DM for a class that is not happening sends people to an
+        empty room.
+        """
+        owner = self.lane(occurrence.event.lane_name)
+
+        if owner is None:
+            return False
+
+        result = classify_occurrence(
+            occurrence, owner.closures, ZoneInfo(owner.meta["default_timezone"]),
+        )
+
+        # None is a silently paused session, which is every bit as off as an announced one.
+        return result is None or isinstance(result, CancelledOccurrence)
 
     def localizer(self, lane: EventLane) -> Localizer:
         return Localizer(lane.meta.get("localization", None))

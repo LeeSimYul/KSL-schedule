@@ -123,6 +123,19 @@ events:
       interval: 28
       duration: 120
 
+# --- 휴강 공지 / Announcing a pause --------------------------------------------------
+# 수업 하나가 쉴 때는 지우지 말고 이렇게 표시하세요. pause_reason 이 있으면 시간표에
+# 🚫 [휴강] 으로 남고, paused_until 이 지나면 자동으로 재개됩니다. 위 수업 중 하나에
+# 아래 세 줄을 추가하면 됩니다.
+#
+#    paused: true
+#    pause_reason:
+#      ko: 담임선생님 개인 사정
+#      en: Teacher unavailable
+#    paused_until: "2026-10-25"
+#
+# pause_reason 없이 paused: true 만 쓰면 시간표에서 완전히 숨겨집니다 (장기 중단용).
+
 # --- 재충전의 날 / Recharging days -----------------------------------------------------
 # Days listed here replace the whole day's embed with the Recharging Day card, and remove
 # this lane's classes from the combined server schedule too. 'until' is inclusive; leave
@@ -133,6 +146,10 @@ closures:
     reason:
       ko: 추석 연휴
       en: Chuseok holiday
+    # 선택. 이 휴강일에만 쓸 안내 문구. 생략하면 레인의 기본 문구가 나옵니다.
+    note:
+      ko: 이번 주는 재충전의 날입니다. 다음 주에 만나요!
+      en: Back next week!
 
   - date: "2026-10-09"
     reason:

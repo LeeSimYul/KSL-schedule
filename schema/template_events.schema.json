@@ -37,7 +37,16 @@
                 },
                 "paused": {
                     "type": "boolean",
-                    "description": "Whether this event is paused or not."
+                    "description": "Take this session off the schedule. On its own the session is hidden entirely; add pause_reason to keep it on the schedule marked as cancelled, and paused_until to have it come back by itself."
+                },
+                "pause_reason": {
+                    "$ref": "#/$defs/localized_text",
+                    "description": "Why the session is off. When given, the paused session stays on the schedule struck through and marked 휴강 / Cancelled with this reason, instead of disappearing - so students can tell a planned pause from a schedule error."
+                },
+                "paused_until": {
+                    "type": "string",
+                    "description": "Last day of a temporary pause, inclusive, in the session's own timezone. Sessions on or before this date are paused; the one after it runs normally without anyone having to edit the file again.",
+                    "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
                 },
                 "schedule": {
                     "type": "object",
@@ -215,7 +224,12 @@
                     "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"
                 },
                 "reason": {
-                    "$ref": "#/$defs/localized_text"
+                    "$ref": "#/$defs/localized_text",
+                    "description": "Why the lane is closed, e.g. 추석 연휴. Shown on the Recharging Day card."
+                },
+                "note": {
+                    "$ref": "#/$defs/localized_text",
+                    "description": "Replaces the lane's default message on the Recharging Day card for this closure only, e.g. 이번 주는 재충전의 날입니다. 다음 주에 만나요!"
                 }
             },
             "required": [

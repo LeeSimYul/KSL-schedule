@@ -233,9 +233,43 @@ localization:
 
 ---
 
-## 4. 재충전의 날 / Recharging Days
+## 4. 휴강과 재충전의 날 / Pauses and Recharging Days
 
-운영진 휴무일은 `events.yaml` 의 `closures` 에 적습니다.
+수업이 **흔적 없이 사라지면** 학생들은 봇 오류인지 공식 휴강인지 알 수 없습니다. 그래서
+쉬는 수업은 기본적으로 **"쉰다"는 사실이 시간표에 보이도록** 설계되어 있습니다.
+
+| 설정 | 범위 | 표시 |
+|---|---|---|
+| `paused: true` + `pause_reason` (+ `paused_until`) | 수업 하나 | 🚫 **[휴강]** ~~제목~~ + 사유 + 재개일 |
+| `closures` (+ `reason`, `note`) | 그날 레인 전체 | 🔋 재충전의 날 카드 + 쉬는 수업 목록 |
+| `paused: true` 만 | 수업 하나 | 표시 안 함 (장기 중단용) |
+
+### 4-1. 수업 하나 휴강
+
+```yaml
+    paused: true
+    pause_reason:
+      ko: 담임선생님 개인 사정
+      en: Teacher unavailable
+    paused_until: "2026-10-25"     # 선택. 이 날짜까지 쉬고 자동 재개
+```
+
+```
+🚫 [휴강 · Cancelled] ~~별빛반 (단어) · 야간반 · Starlight Class (Vocabulary) · Night~~
+-# 🕙 <t:…:f> · 진행자 · Host: gom 0703 (🏫 담임선생님 · Homeroom Teacher)
+-# 사유 · Reason: 담임선생님 개인 사정 · Teacher unavailable
+-# 2026-10-25까지 쉬고, 그다음 수업부터 정상 진행합니다 · Resumes after 2026-10-25
+```
+
+- **`pause_reason` 이 있어야 표시됩니다.** 사유 없는 `paused: true` 는 예전처럼 완전히
+  숨겨집니다 — 다른 레인에 1년 넘게 중단된 수업들이 있어서, 그것들이 매주 "휴강"으로
+  뜨지 않도록 기존 동작을 유지했습니다.
+- `paused_until` 은 `paused` 보다 우선합니다. 둘 다 적어도 날짜가 지나면 재개됩니다.
+- 휴강된 수업은 봇의 참석 신청·알림 대상에서 빠지고, 이미 알림을 신청한 사람에게도
+  DM이 가지 않습니다.
+- `old.json` 매니페스트의 "다음 수업"은 휴강 기간을 건너뛴 재개일로 계산됩니다.
+
+### 4-2. 재충전의 날 (그날 전체 휴무)
 
 ```yaml
 closures:
@@ -244,9 +278,10 @@ closures:
     reason:
       ko: 추석 연휴
       en: Chuseok holiday
+    note:                    # 선택. 이 휴강일에만 쓸 안내 문구
+      ko: 이번 주는 재충전의 날입니다. 다음 주에 만나요!
+      en: Back next week!
 ```
-
-해당 날짜는 전용 스타일로 바뀝니다.
 
 ```
 🔋 Thursday (2026-09-24)
@@ -254,14 +289,21 @@ closures:
 재충전의 날 · Recharging Day
 -# 추석 연휴
 -# Chuseok holiday
--# 운영진 휴무로 수업을 쉽니다. 다음 시간에 만나요!
+-# 이번 주는 재충전의 날입니다. 다음 주에 만나요!
+-# Back next week!
+
+-# 🚫 이날 쉬는 수업 · Off this day
+-# ~~별빛반 (단어) · Starlight Class (Vocabulary)~~ · <t:…:t>
 ```
 
 - 아이콘 `🔋`, 색상은 요일별 무지개와 구분되는 **채도 낮은 회청색**이라 한눈에 "쉬는 날"로
   읽힙니다.
-- 그날 예정된 이 레인의 수업은 **표시되지 않습니다**.
-- 서버 통합 시간표(`server_global`)에서도 KSL 수업만 빠지고, 다른 언어 수업은 그대로
-  남습니다.
+- 원래 그날 있던 수업이 **취소선으로 나열**되어, 학생이 자기 수업이 취소됐음을 바로 압니다.
+- 안내 문구는 세 단계로 정해집니다: 휴강일의 `note` → 레인의
+  `localization.labels.recharge_note` → 기본 문구("오늘은 수업을 쉽니다. 푹 쉬어 주세요!").
+- 날짜는 **그 휴강일을 적은 레인의 시간대**(KSL은 KST) 기준입니다. 서버 통합
+  시간표(`server_global`)는 뉴욕 시간으로 표시되지만, 휴강 여부는 한국 날짜로 판단합니다.
+- 통합 시간표에서는 KSL 수업이 **휴강으로 표시**되고, 다른 언어 수업은 그대로 남습니다.
 
 ---
 

@@ -181,7 +181,12 @@ def parse_closure(raw_closure: EventLaneRawClosure) -> EventLaneClosure:
     if end < start:
         raise ValueError(f"Closure starting {start} ends on {end}, which is before it begins")
 
-    return EventLaneClosure(start=start, end=end, reason=raw_closure.get("reason", {}))
+    return EventLaneClosure(
+        start=start,
+        end=end,
+        reason=raw_closure.get("reason", {}),
+        note=raw_closure.get("note", {}),
+    )
 
 
 def parse_event(
@@ -232,6 +237,11 @@ def parse_event(
         vrchat=raw_event.get('vrchat', {}),
         duration=raw_event['schedule'].get('duration', None) or 60,
         rsvp=raw_event.get('rsvp', False),
+        pause_reason=raw_event.get('pause_reason', {}),
+        paused_until=(
+            datetime.date.fromisoformat(raw_event['paused_until'])
+            if raw_event.get('paused_until') else None
+        ),
     )
 
 
