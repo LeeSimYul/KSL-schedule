@@ -1017,12 +1017,19 @@ class FakeWebhook:
     def _fail(self):
         response = types.SimpleNamespace(status=0, reason="test")
 
+        # Bodies as Discord sends them: the JSON code is what tells the failures apart.
         if self.mode == "notfound":
             response.status = 404
-            raise discord.NotFound(response, {"message": "Unknown Message"})
+            raise discord.NotFound(response, {"message": "Unknown Message", "code": 10008})
+        if self.mode == "webhook_gone":
+            response.status = 404
+            raise discord.NotFound(response, {"message": "Unknown Webhook", "code": 10015})
+        if self.mode == "bad_token":
+            response.status = 401
+            raise discord.HTTPException(response, {"message": "Invalid Webhook Token", "code": 50027})
         if self.mode == "forbidden":
             response.status = 403
-            raise discord.Forbidden(response, {"message": "Missing Access"})
+            raise discord.Forbidden(response, {"message": "Missing Access", "code": 50001})
         if self.mode == "http":
             response.status = 400
             raise discord.HTTPException(response, {"message": "Bad Request"})
@@ -1033,6 +1040,11 @@ class FakeWebhook:
 
     def send(self, **kwargs):
         self.sent = True
+
+        # A webhook that is gone cannot post either; nothing else fails on send.
+        if self.mode in ("webhook_gone", "bad_token"):
+            self._fail()
+
         return types.SimpleNamespace(id=222)
 
 
@@ -1149,6 +1161,63 @@ def test_an_existing_message_is_edited_never_reposted():
 
     assert not lane.webhook.sent, "the normal path must edit, not post"
     assert delivered["normal"] == 111
+
+
+def deliver_and_capture(lane, allow_create=False):
+    """Deliver one lane that is expected to fail, returning what it reported."""
+    from formats.webhook import send_webhooks
+
+    with quiet_output() as captured:
+        try:
+            send_webhooks([lane], allow_create=allow_create)
+        except RuntimeError:
+            pass
+
+    return captured.getvalue()
+
+
+def test_a_deleted_webhook_is_not_mistaken_for_a_deleted_message():
+    """
+    Both are a 404, but the fixes are opposite.
+
+    A deleted message is fixed by posting a replacement; a deleted webhook is fixed by
+    replacing the URL secret, and "post a replacement" through it only fails again. The
+    report must name the URL secret, not send the operator after the message ID.
+    """
+    report = deliver_and_capture(make_webhook_lane("gone", "webhook_gone"))
+
+    assert "KSL_SCHEDULE_WEBHOOK_URL" in report, report
+    assert "웹후크 자체가 삭제" in report, report
+    assert "KSL_SCHEDULE_MESSAGE_ID" not in report, report
+
+
+def test_a_deleted_webhook_is_reported_even_with_allow_create():
+    lane = make_webhook_lane("gone", "webhook_gone")
+    report = deliver_and_capture(lane, allow_create=True)
+
+    assert "KSL_SCHEDULE_WEBHOOK_URL" in report, report
+    assert "posting a replacement" not in report, "a dead webhook cannot post a replacement"
+
+
+def test_a_deleted_message_still_points_at_the_message_id():
+    report = deliver_and_capture(make_webhook_lane("deleted", "notfound"))
+
+    assert "KSL_SCHEDULE_MESSAGE_ID" in report, report
+    assert "allow_create" in report, report
+
+
+def test_a_rejected_token_points_at_the_url_secret():
+    report = deliver_and_capture(make_webhook_lane("reset", "bad_token"))
+
+    assert "KSL_SCHEDULE_WEBHOOK_URL" in report, report
+    assert "토큰" in report, report
+
+
+def test_lost_channel_access_is_not_blamed_on_a_deleted_webhook():
+    report = deliver_and_capture(make_webhook_lane("locked", "forbidden"))
+
+    assert "권한" in report, report
+    assert "삭제" not in report, report
 
 
 def test_every_lane_failing_fails_the_build():

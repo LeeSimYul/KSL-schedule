@@ -64,6 +64,53 @@ def annotate(level: str, lane_name: str, message: str) -> None:
     emit_annotation(level, f"[{lane_name}] {message}")
 
 
+# Discord's JSON error codes. A 404 alone does not say *what* is missing, and the fix for a
+# deleted message (post a replacement) is the wrong one for a deleted webhook (replace the
+# URL secret) - posting through a webhook that no longer exists fails the same way again.
+UNKNOWN_MESSAGE = 10008
+UNKNOWN_WEBHOOK = 10015
+INVALID_WEBHOOK_TOKEN = 50027
+
+
+def explain_delivery_error(error: discord.HTTPException, webhook_info: dict | None) -> str:
+    """Say what a terminal Discord error means for this lane and which secret fixes it."""
+    webhook_info = webhook_info or {}
+    url_secret = webhook_info.get('url', '<webhook url secret>')
+    detail = f"HTTP {error.status}, code {error.code}: {error.text}"
+
+    if error.code == UNKNOWN_WEBHOOK:
+        return (
+            f"The webhook itself no longer exists ({detail}) - it was deleted in Discord, or "
+            f"{url_secret} points at an old one. Create a webhook in the schedule channel "
+            f"(Channel settings > Integrations > Webhooks), put its URL in {url_secret}, then "
+            f"re-run with \"allow_create\" once, since messages belong to the webhook that "
+            f"posted them.\n"
+            f"  웹후크 자체가 삭제되었습니다(메시지가 아니라 웹후크). 채널 설정 > 연동 > 웹후크에서 "
+            f"새로 만들어 {url_secret} 시크릿에 넣고, allow_create 를 켜서 한 번 실행한 뒤 "
+            f"새 메시지 ID를 등록해 주세요."
+        )
+
+    if error.status == 401 or error.code == INVALID_WEBHOOK_TOKEN:
+        return (
+            f"Discord did not accept the webhook's token ({detail}) - the webhook was "
+            f"reset, or {url_secret} was pasted incompletely. Copy the URL again from the "
+            f"webhook's settings into {url_secret}.\n"
+            f"  웹후크 토큰이 맞지 않습니다. 웹후크 URL이 재발급되었거나 잘려서 저장된 것 같습니다. "
+            f"URL 전체를 다시 복사해 {url_secret} 에 넣어 주세요."
+        )
+
+    if isinstance(error, discord.Forbidden):
+        return (
+            f"Discord refused the request ({detail}) - the webhook has lost access to its "
+            f"channel, usually because the channel's permissions changed or its thread was "
+            f"archived or locked.\n"
+            f"  웹후크가 채널에 접근할 권한을 잃었습니다. 채널 권한 변경이나 스레드 보관/잠금을 "
+            f"확인해 주세요."
+        )
+
+    return f"Discord rejected the schedule after retries ({detail})"
+
+
 class ScheduleMessageMissing(Exception):
     """
     There is no schedule message to edit, and posting one was not permitted.
@@ -104,7 +151,12 @@ def deliver_lane(
                 **extra,
             )
             return message.id
-        except discord.NotFound:
+        except discord.NotFound as error:
+            # Only a missing *message* is solved by posting a new one. Anything else that is
+            # missing - the webhook, above all - is left to send_webhooks to explain.
+            if error.code not in (UNKNOWN_MESSAGE, 0):
+                raise
+
             if not allow_create:
                 raise ScheduleMessageMissing(
                     f"Schedule message {event_lane.webhook_message_id} no longer exists, so there "
@@ -178,19 +230,9 @@ def send_webhooks(event_lanes: list[EventLane], allow_create: bool = False) -> d
         except ScheduleMessageMissing as error:
             failures.append(event_lane.name)
             annotate('error', event_lane.name, str(error))
-        except discord.Forbidden:
-            failures.append(event_lane.name)
-            annotate(
-                'error', event_lane.name,
-                "Discord refused the request (403). The webhook was probably deleted or "
-                "regenerated - create a new one and update this lane's URL secret.",
-            )
         except discord.HTTPException as error:
             failures.append(event_lane.name)
-            annotate(
-                'error', event_lane.name,
-                f"Discord rejected the schedule after retries (HTTP {error.status}): {error.text}",
-            )
+            annotate('error', event_lane.name, explain_delivery_error(error, event_lane.webhook_info))
         except Exception as error:  # noqa: BLE001 - one lane's data must not sink the rest
             failures.append(event_lane.name)
             annotate('error', event_lane.name, f"Could not build or deliver this schedule: {error!r}")

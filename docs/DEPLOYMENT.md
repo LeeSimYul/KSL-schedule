@@ -105,6 +105,12 @@ Warning: no webhook URL found for sign_language_asl
   이름 철자가 다릅니다. **이때도 중복 메시지는 생기지 않습니다.**
 - ❌ `Schedule message ... no longer exists` 로 실패 → 그 메시지가 삭제됐습니다.
   위의 `allow_create` 절차로 다시 만들고 시크릿을 갱신하세요.
+- ❌ `The webhook itself no longer exists` 로 실패 → 메시지가 아니라 **웹후크가**
+  삭제됐습니다. 채널 설정 → 연동 → 웹후크에서 새로 만들어 `KSL_SCHEDULE_WEBHOOK_URL` 에
+  넣은 뒤 `allow_create` 로 한 번 실행하고, 새 메시지 ID를 등록하세요. (메시지는 그것을
+  게시한 웹후크로만 편집할 수 있어서, 예전 메시지는 새 웹후크로 고칠 수 없습니다.)
+- ❌ `did not accept the webhook's token` 으로 실패 → 웹후크 URL이 재발급됐거나 잘려서
+  저장됐습니다. URL 전체를 다시 복사해 `KSL_SCHEDULE_WEBHOOK_URL` 에 넣으세요.
 
 ### 1-5. 토큰이 유출되었다면
 
@@ -386,7 +392,8 @@ python scripts/build_manifests.py --no-send --preview  # 디스코드 전송 없
 | 웹훅 URL 시크릿 없음 | 경고 후 해당 레인만 건너뜀, 빌드 성공 |
 | MESSAGE_ID 시크릿 없음 | **새로 게시하지 않고 빌드 실패** (중복 방지) |
 | 시간표 메시지가 삭제됨 | **새로 게시하지 않고 빌드 실패.** `allow_create` 수동 실행으로만 복구 |
-| 웹훅이 폐기됨 (403) | `::error::` 주석을 남기고 **다른 레인은 계속 진행** |
+| 웹훅이 삭제됨 (404, code 10015) | 메시지 삭제와 **구분해서** URL 시크릿을 고치라고 안내. 새로 게시하지 않음 |
+| 웹훅 토큰 불일치 (401) / 채널 권한 상실 (403) | 원인별 안내를 `::error::` 로 남기고 **다른 레인은 계속 진행** |
 | Rate limit (429) / 서버 오류 (5xx) | discord.py가 자동 재시도 (최대 5회) |
 | 모든 레인 실패 | 빌드 실패 — 시크릿이나 네트워크 문제 신호 |
 | 임베드가 6000자 초과 | 한도 내로 잘라내고 경고. 디스코드가 거부해 시간표가 멈추는 것보다 낫습니다 |
