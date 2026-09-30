@@ -681,6 +681,24 @@ def build_weekly_embeds(
 
     schedule = collect_week(lane, event_lanes, now, extra_occurrences)
     week_start = schedule.start
+    lanes_by_name = {other.name: other for other in event_lanes}
+
+    def vocabulary(event: EventLaneEvent) -> tuple[dict, dict, EventLaneVRChatInfo | None]:
+        """
+        The class names, host titles and VRChat links an event's *own* lane defines.
+
+        A combined schedule shows other lanes' events but has no class or title
+        vocabulary of its own, so looking these up on the displaying lane printed raw
+        keys - "(principal)", "[starlight]". The words still come out in the displaying
+        lane's language, through its localizer.
+        """
+        owner = lanes_by_name.get(event.lane_name, lane)
+
+        return (
+            owner.meta.get("levels") or levels,
+            owner.meta.get("roles") or roles,
+            owner.meta.get("vrchat") or lane_vrchat,
+        )
 
     embeds: list[discord.Embed] = []
 
@@ -718,17 +736,20 @@ def build_weekly_embeds(
         )
 
         for entry in entries:
+            event = entry.occurrence.event if isinstance(entry, CancelledOccurrence) else entry.event
+            event_levels, event_roles, event_vrchat = vocabulary(event)
+
             if isinstance(entry, CancelledOccurrence):
-                description_parts.append(format_cancelled_block(entry, localizer, roles))
+                description_parts.append(format_cancelled_block(entry, localizer, event_roles))
             else:
                 description_parts.append(format_occurrence_block(
                     entry,
                     localizer,
-                    levels,
+                    event_levels,
                     display_timezones,
-                    lane_vrchat=lane_vrchat,
+                    lane_vrchat=event_vrchat,
                     reference_date=day.date(),
-                    roles=roles,
+                    roles=event_roles,
                 ))
 
         if not entries:

@@ -36,12 +36,15 @@ jobs:
   build_manifests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # checkout@v5 and setup-python@v6 run on Node 24. The previous majors ran on
+      # Node 20, which GitHub deprecated - every run carried a warning, and the runner
+      # will eventually refuse them outright.
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 

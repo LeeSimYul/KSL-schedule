@@ -413,6 +413,7 @@ python scripts/tests/test_ksl.py
 | `scripts/loader.py` | YAML 템플릿 읽기·검증 (빌드와 봇이 공유) |
 | `scripts/embeds.py` | 임베드 생성 — 시간표, 재충전의 날, 단일 수업 |
 | `scripts/formats/webhook.py` | 웹훅으로 시간표 게시/수정 |
+| `scripts/ci.py` | GitHub Actions 주석(`::error::` 등) 출력 |
 | `scripts/formats/old.py` | `vrsl.withdevon.xyz` 형식 매니페스트 |
 | `scripts/build_manifests.py` | GitHub Actions 진입점 |
 | `scripts/bot/` | 봇 — 버튼, 알림, 디스코드 이벤트 연동 |
@@ -424,9 +425,39 @@ python scripts/tests/test_ksl.py
 
 ## 8. 자주 막히는 지점 / Troubleshooting
 
+**월요일이 지났는데 시간표가 지난주 그대로예요**
+→ 포크된 저장소라 매일 도는 예약 실행이 꺼져 있습니다. `Actions` → `Run workflow` 를
+눌러 주세요. 근본 해결은 [DEPLOYMENT.md 3-3](DEPLOYMENT.md)을 참고하세요.
+
 **시간표가 갱신되지 않아요**
 → Actions 로그에서 `Warning: no webhook URL found` 를 확인하세요. 해당 레인의 secret이
 비어 있습니다. 6000자 초과 경고도 확인하세요.
+
+**빌드가 `the secret KSL_SCHEDULE_MESSAGE_ID is empty` 로 실패해요**
+→ 편집할 시간표 메시지를 모르는 상태입니다. 중복 게시를 막으려고 **일부러 아무것도 올리지
+않고** 멈춘 것입니다. [DEPLOYMENT.md 1-4](DEPLOYMENT.md)대로 메시지 ID를 등록하세요.
+
+**채널에 시간표 메시지가 두 개가 됐어요**
+→ 오래된 것을 지우고, 남긴 메시지의 ID를 `KSL_SCHEDULE_MESSAGE_ID` 에 넣으세요. 지금은
+자동 실행이 새 메시지를 만들지 않으므로, `allow_create` 를 켠 수동 실행에서만 생깁니다.
+
+**수업을 추가했는데 시간표에 안 나와요**
+→ 세 가지를 순서대로 확인하세요.
+1. 고친 파일이 `templates/sign_language_ksl/events.yaml` 인가요? 이름이 같은
+   `docs/examples/events.example.yaml` 은 **문서용이라 게시되지 않습니다.**
+2. `paused: true` 가 남아 있지 않나요? 사유(`pause_reason`) 없는 `paused` 는 수업을
+   **완전히 숨깁니다.**
+3. 격주(`interval: 14`) 수업이라면 이번 주가 쉬는 주일 수 있습니다. `basis` 가 실제로
+   수업이 열린 날짜인지 확인하세요.
+
+**휴강인데 "휴강"이라고 안 나오고 그냥 사라져요**
+→ `pause_reason` 이 없는 것입니다. `paused: true` **아래 줄**에 `pause_reason:` 을 쓰고,
+그 밑에 `ko:`/`en:` 을 들여쓰세요 (4-1 참고).
+
+**YAML 오류로 빌드가 멈췄어요**
+→ Actions 로그의 `힌트 / Hint:` 줄이 고칠 줄을 알려 줍니다. 오류가 가리키는 줄보다 한두 줄
+**위**가 원인인 경우가 많습니다. 자주 나오는 경우는 [DEPLOYMENT.md 3-2](DEPLOYMENT.md)의
+표를 보세요.
 
 **시간이 한 시간씩 어긋나요**
 → `basis` 는 **해당 시간대의 벽시계 날짜**여야 합니다. `day` 와 실제 요일이 다르면 빌드가

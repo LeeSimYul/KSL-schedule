@@ -1,7 +1,15 @@
-# 배포 · 보안 · 병합 가이드 / Deployment, Secrets and Merge Guide
+# 배포 · 보안 · 운영 가이드 / Deployment, Secrets and Operations
 
-`claude/serene-johnson-mqcuhy` 브랜치를 `main` 으로 병합하고, KSL 디스코드 서버에서
-안전하게 운영하기 위한 설정을 모았습니다.
+KSL 디스코드 서버에서 시간표를 안전하게 운영하기 위한 설정과 절차를 모았습니다.
+
+| 하고 싶은 일 | 볼 곳 |
+|---|---|
+| 시크릿 등록, 시간표 메시지 ID 설정 | 1장 |
+| 봇(RSVP·알림) 띄우기 | 2장 |
+| 시간표를 고치고 반영하기 | 3장 |
+| **매주 월요일 자동 갱신이 안 될 때** | **3-3** |
+| 포크에서 독립 저장소로 옮기기, 라이선스 | 4장 |
+| 무엇이 실패하면 어떻게 되는지 | 5장 |
 
 ---
 
@@ -183,86 +191,79 @@ interactions: true
 
 ---
 
-## 3. `main` 병합 가이드 / Merging to main
+## 3. 시간표 고치고 반영하기 / Making changes
 
-### 3-1. GitHub UI (권장)
+### 3-1. 반영 흐름
 
-1. 저장소 상단의 **`Compare & pull request`** 배너를 누릅니다.
-   (배너가 사라졌다면 `Pull requests` → `New pull request`)
-2. **base 저장소를 반드시 확인하세요.** 포크이기 때문에 GitHub가 기본으로
-   `HelpingHandsVR/schedule` 을 base로 잡습니다.
+`main` 에 푸시하면 워크플로가 이 순서로 돕니다.
 
-   ```
-   base repository: LeeSimYul/KSL-schedule   ← 이걸로 바꿔야 합니다
-   base: main  ←  compare: claude/serene-johnson-mqcuhy
-   ```
+```
+Run tests  →  Generate manifests  →  Transfer manifests to deploy branch
+               디스코드 메시지 수정          VRChat 등이 읽는 매니페스트 발행
+```
 
-   이 한 줄을 놓치면 **원본 저장소에 PR이 열립니다.**
-3. `Create pull request` → CI(`Build schedule manifests`)가 초록색인지 확인
-4. `Merge pull request`
-   - **Squash and merge** 권장 — `main` 히스토리가 커밋 하나로 깔끔하게 남습니다.
-5. 병합 후 브랜치 삭제 (`Delete branch`)
+- **테스트가 먼저 돕니다.** YAML이 깨졌거나 규칙에 어긋나면 여기서 멈추고, 디스코드에는
+  아무것도 게시되지 않습니다. 깨진 시간표가 나가는 일은 없습니다.
+- 디스코드 메시지는 **새로 올리지 않고 기존 것을 수정**합니다 (1-4 참고).
 
-### 3-2. 명령줄
+### 3-2. 고치는 방법
+
+**GitHub 웹에서 (가장 간단)** — `templates/sign_language_ksl/events.yaml` → ✏️ 편집 →
+`Commit changes`. 커밋하는 순간 위 흐름이 돕니다.
+
+> ⚠️ 같은 이름의 `docs/examples/events.example.yaml` 은 **문서용 예시**라 게시되지
+> 않습니다. 경로가 `templates/sign_language_ksl/` 인지 꼭 확인하세요.
+
+**내 컴퓨터에서** — 푸시 전에 결과를 미리 볼 수 있습니다.
 
 ```bash
-git checkout main
-git pull origin main
-
-# 히스토리를 남기고 싶다면
-git merge --no-ff claude/serene-johnson-mqcuhy
-
-# 커밋 하나로 합치고 싶다면 (UI의 Squash and merge와 동일)
-# git merge --squash claude/serene-johnson-mqcuhy && git commit
-
+python scripts/build_manifests.py --no-send --preview   # 디스코드 전송 없이 → output/preview.json
+python scripts/tests/test_ksl.py                         # 전체 테스트
 git push origin main
 ```
 
-### 3-3. 병합 직후 확인
+**YAML 오류가 나면** Actions 로그의 `힌트 / Hint:` 줄이 고칠 줄을 짚어 줍니다. 파서가
+실제 실수보다 한두 줄 늦게 알아차리는 일이 많아서, 오류가 가리키는 줄 번호보다 힌트가
+가리키는 줄을 먼저 보세요. 자주 나오는 경우는 이렇습니다.
 
-`main` 에 푸시되면 워크플로가 실행됩니다(`on: push: branches: [main]`) — **단, Actions가
-켜져 있어야 합니다.**
+| 힌트 내용 | 원인 | 고치기 |
+|---|---|---|
+| 콜론 뒤에 공백이 없습니다 | `events:──`, `host:이름` | `키: 값` 처럼 한 칸 띄우기 |
+| 이미 값을 가진 키라서 … 부모 키가 빠진 것 같습니다 | `paused: true` 바로 아래 `ko:` | 그 사이에 `pause_reason:` 같은 키 추가 |
+| 탭 문자로 들여쓰기 | 탭 사용 | 공백으로 바꾸기 |
+| 따옴표가 닫히지 않았습니다 | `"KSL 별빛반` | 닫는 `"` 추가 |
 
-> 포크된 저장소는 Actions가 기본적으로 꺼져 있습니다. 실제로 이 저장소의 워크플로는
-> 등록만 되어 있고 **실행 이력이 0건**입니다. `Actions` 탭에 들어가
-> `I understand my workflows, go ahead and enable them` 이 보이면 눌러서 켜 주세요.
-> 예약(cron) 실행은 포크에서는 켜도 동작하지 않습니다 — 4장을 참고하세요.
+### 3-3. ⚠️ 매주 월요일 자동 갱신 — 현재 동작하지 않습니다
 
-1. `Actions` 탭에서 `Build schedule manifests` 가 초록색인지 확인
-   (자동 실행이 안 됐다면 `Run workflow` 로 수동 실행)
-2. 첫 실행 로그에 이렇게 찍히면 정상입니다.
-   ```
-   ::notice::deploy branch does not exist yet - creating it
-   ```
-3. `deploy` 브랜치가 생기고 `output/old.json`, `output/webhook.json` 이 들어 있는지 확인
+시간표는 **한 주(월요일 05:00 KST 시작) 단위**로 만들어집니다. 주가 바뀌면 누군가
+워크플로를 돌려야 새 주의 날짜로 바뀝니다. 그 일을 하라고 워크플로에 예약 실행
+(`cron`, 매일 05:17 UTC)이 걸려 있습니다.
 
-> 시크릿을 아직 등록하지 않았다면 디스코드에는 아무것도 게시되지 않고, 매니페스트만
-> 생성됩니다. 안전하게 먼저 돌려 보기 좋은 상태입니다.
+**그런데 이 저장소에서는 예약 실행이 한 번도 돌지 않았습니다** (2026-09-30 확인: 푸시로
+인한 실행 40회 이상, 예약 실행 0회). GitHub는 **포크된 저장소의 예약 실행을 기본적으로
+꺼 둡니다.**
 
----
+결과적으로 **아무도 푸시하지 않은 주에는 시간표가 지난주 날짜로 남아 있습니다.**
+(`3일 후` 같은 상대 시간 표기는 디스코드가 알아서 바꾸지만, 요일별 날짜와 수업 목록은
+그대로입니다.)
+
+**해결 방법 — 위에서부터 시도하세요.**
+
+1. **예약 실행 켜기** — `Actions` 탭 → 왼쪽 `Build schedule manifests` 클릭.
+   상단에 예약 실행이 꺼져 있다는 안내와 `Enable workflow` 버튼이 보이면 누릅니다.
+   다음 날 `Actions` 목록에 **이벤트가 `schedule`** 인 실행이 생기면 해결된 것입니다.
+2. **독립 저장소로 전환** — 버튼이 없거나 눌러도 예약 실행이 생기지 않으면, 포크라서
+   막혀 있는 것입니다. 4장의 절차로 포크 관계를 끊으면 예약 실행이 정상 동작합니다.
+3. **당분간 수동 실행** — 해결 전까지는 **매주 월요일**에 `Actions` → `Run workflow`
+   를 한 번 눌러 주세요 (`allow_create` 체크는 **끈 채로**). 시간표가 새 주로 바뀝니다.
 
 ## 4. 독립 저장소 전환 / Going standalone
 
-### 4-1. 먼저: 지금 워크플로는 한 번도 실행된 적이 없습니다
+### 4-1. 왜 전환하나
 
-확인 결과입니다.
-
-```
-워크플로 등록  : Build schedule manifests (state: active, 2025-11-28 등록)
-실행 이력      : 0건
-```
-
-매일 도는 cron(`17 5 * * *`)이 등록되어 있는데도 실행 이력이 0건인 이유는 버그가 아니라
-GitHub 정책입니다.
-
-> **포크된 저장소에서는 예약(`schedule`) 워크플로가 기본적으로 비활성화됩니다.**
-> 포크의 Actions 자체도 기본적으로 꺼져 있습니다.
-
-즉 **독립 저장소로 전환하는 것은 단순한 정리가 아니라, 자동 갱신을 실제로 동작시키는
-전제 조건**입니다. 포크 상태로 두면 손으로 `Run workflow` 를 누를 때만 시간표가 갱신됩니다.
-
-전환 후 `Actions` 탭에서 워크플로가 활성 상태인지 한 번 확인하고, 첫 회는
-`Run workflow` 로 수동 실행해 보는 것을 권합니다.
+포크로 남아 있는 한 **예약 실행이 꺼져 있어** 매주 월요일 시간표가 자동으로 바뀌지
+않습니다 (3-3). 독립 저장소로 옮기는 것은 정리가 아니라 **자동 갱신을 살리는 방법**이기도
+합니다. 그 밖에 원본을 동기화할 계획이 없다면 포크로 남을 이유는 많지 않습니다.
 
 ### 4-2. 방법 1 — 새 저장소로 이전 (권장)
 
@@ -270,8 +271,6 @@ GitHub는 **포크 관계 해제를 UI나 API로 제공하지 않습니다.** �
 새 저장소를 만들어 밀어 넣는 것입니다.
 
 ```bash
-# 0) 먼저 브랜치를 main 으로 합칩니다 (3장 참고)
-
 # 1) GitHub에서 새 저장소를 만듭니다.
 #    - 이름: KSL-schedule  (원하는 이름)
 #    - Public / Private 선택
@@ -372,7 +371,7 @@ git remote set-url --push upstream DISABLED     # 실수로 원본에 push 하�
 ### 4-6. 전환 후 점검
 
 ```bash
-python scripts/tests/test_ksl.py                       # 38개 테스트
+python scripts/tests/test_ksl.py                       # 전체 테스트
 python scripts/build_manifests.py --no-send --preview  # 디스코드 전송 없이 렌더링
 ```
 
@@ -380,6 +379,10 @@ python scripts/build_manifests.py --no-send --preview  # 디스코드 전송 없
 
 | 상황 | 동작 |
 |---|---|
+| 예약 실행이 꺼져 있음 (포크) | 주가 바뀌어도 시간표가 넘어가지 않음 — **3-3** 참고 |
+| YAML 문법 오류 | 테스트 단계에서 멈춤, 게시 없음. 로그에 고칠 줄 힌트 |
+| 사유 없는 `paused: true` | 수업을 조용히 숨김 (장기 중단용) |
+| `pause_reason` 이 있는 휴강 | 🚫 휴강으로 표시, 참석 신청·알림 대상에서 제외 |
 | 웹훅 URL 시크릿 없음 | 경고 후 해당 레인만 건너뜀, 빌드 성공 |
 | MESSAGE_ID 시크릿 없음 | **새로 게시하지 않고 빌드 실패** (중복 방지) |
 | 시간표 메시지가 삭제됨 | **새로 게시하지 않고 빌드 실패.** `allow_create` 수동 실행으로만 복구 |

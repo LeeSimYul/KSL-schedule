@@ -359,6 +359,28 @@ def test_a_closure_is_read_in_the_timezone_it_was_written_in():
     assert not cancelled
 
 
+def test_an_aggregated_schedule_uses_each_lanes_own_class_and_title_names():
+    """
+    The combined server schedule has no class or title vocabulary of its own, so KSL
+    sessions on it used to show raw keys - "(principal)", "[starlight]".
+    """
+    ksl = make_lane(events=[make_event(role="principal")])
+    globals_lane = EventLane(
+        name="server_global",
+        meta={"channels": {}, "default_timezone": "Asia/Seoul", "use_all_events": True},
+        events=[], webhook=None, webhook_info=None, webhook_message_id=None,
+    )
+
+    wednesday = embeds.build_weekly_embeds(
+        globals_lane, [globals_lane, ksl], now=datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST),
+    )[2].description
+
+    # Resolved from the KSL lane, rendered in the global lane's language (English).
+    assert "(👑 Principal)" in wednesday, wednesday
+    assert "⭐ [Starlight Class - Vocabulary]" in wednesday
+    assert "(principal)" not in wednesday and "[starlight]" not in wednesday
+
+
 # --- Pausing a session -------------------------------------------------------------------
 
 WEDNESDAY = datetime.datetime(2026, 9, 15, 12, 0, tzinfo=KST)   # a now inside that week
