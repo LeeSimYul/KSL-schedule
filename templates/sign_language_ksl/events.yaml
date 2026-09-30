@@ -92,6 +92,7 @@ events:
   - host: gom 0703
     name: "KSL 별빛반"
     paused: true
+    pause_reason:
       ko: 담임선생님 개인 사정
       en: Teacher unavailable
     paused_until: "2026-10-05"

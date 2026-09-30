@@ -87,6 +87,75 @@ def describe_yaml_error(path: pathlib.Path, text: str, error: YAMLError) -> str:
     return "\n".join(parts)
 
 
+def indentation_of(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def missing_parent_hint(source_lines: list[str], error_line: int) -> str | None:
+    """
+    Catch a nested block placed under a key that already has a value.
+
+    The shape is:
+
+        paused: true
+          ko: 담임선생님 개인 사정      <- parser gives up here
+
+    ``paused`` already holds ``true``, so it cannot also hold ``ko``/``en``. The usual
+    cause is a parent key that was never typed - here ``pause_reason:``. The parser
+    reports "mapping values are not allowed in this context", which says nothing about
+    the missing line.
+    """
+    if error_line >= len(source_lines):
+        return None
+
+    line = source_lines[error_line]
+
+    if not line.strip() or line.lstrip().startswith("#") or "\t" in line:
+        return None
+
+    for index in range(error_line - 1, -1, -1):
+        previous = source_lines[index]
+        stripped = previous.strip()
+
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        if indentation_of(line) <= indentation_of(previous):
+            return None
+
+        content = stripped[2:] if stripped.startswith("- ") else stripped
+        key, separator, raw_value = content.partition(":")
+        value = raw_value.strip()
+
+        # `key:value` with no space is not a key at all to YAML - it is one plain string,
+        # and that mistake has its own, more precise hint in yaml_hint.
+        if separator and raw_value and not raw_value.startswith(" "):
+            return None
+
+        # A block scalar (`header: |`), an anchor, or an open flow collection may
+        # legitimately be followed by deeper lines - only a finished value may not.
+        if not separator or not value or value[0] in "|>&[{":
+            return None
+
+        child_key = line.strip().partition(":")[0]
+        translation = child_key in ("ko", "en", "ja", "zh")
+
+        return (
+            f"{index + 1}행의 `{stripped}` 는 이미 값(`{value}`)을 가진 키라서, {error_line + 1}행처럼 "
+            f"그 아래에 들여쓴 항목을 가질 수 없습니다. {error_line + 1}행 위에 부모 키가 한 줄 "
+            f"빠진 것 같습니다"
+            + (
+                " - ko/en 번역이 들어가는 자리라면 `pause_reason:`, `title:`, `description:`, "
+                "`reason:` 같은 키입니다. / "
+                if translation else ". / "
+            )
+            + f"Line {index + 1} already has a value, so line {error_line + 1} cannot be nested "
+            f"under it - a parent key is probably missing above line {error_line + 1}."
+        )
+
+    return None
+
+
 def yaml_hint(source_lines: list[str], error_line: int) -> str | None:
     """
     Guess at the cause, scanning back from the position the parser reported.
@@ -97,6 +166,13 @@ def yaml_hint(source_lines: list[str], error_line: int) -> str | None:
     """
     # Far enough back to cover the usual lag, close enough not to blame something else.
     LOOKBACK = 6
+
+    # The one mistake whose tell-tale is the *relationship* between two lines rather than
+    # anything on a single line, so it is checked on its own before the line-by-line scan.
+    nested_under_value = missing_parent_hint(source_lines, error_line)
+
+    if nested_under_value:
+        return nested_under_value
 
     # The mark can point past the last line, e.g. when a quote runs to end of file.
     start = min(error_line, len(source_lines) - 1)

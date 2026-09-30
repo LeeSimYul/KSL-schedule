@@ -1260,6 +1260,45 @@ def test_the_error_report_shows_the_offending_line_with_a_caret():
     assert any(line.strip().startswith("| ") and "^" in line for line in lines), message
 
 
+def test_a_forgotten_parent_key_is_named():
+    """
+    The real failure this came from: ko/en typed straight under `paused: true`, with
+    the `pause_reason:` line between them never written. The parser only says "mapping
+    values are not allowed in this context" on the ko line.
+    """
+    message = read_broken(
+        "events:\n"
+        "  - host: gom 0703\n"
+        "    name: KSL\n"
+        "    paused: true\n"
+        "      ko: \ub2f4\uc784\uc120\uc0dd\ub2d8 \uac1c\uc778 \uc0ac\uc815\n"
+        "      en: Teacher unavailable\n"
+    )
+
+    assert "Line 4 already has a value, so line 5 cannot be nested" in message, message
+    assert "pause_reason:" in message, "a ko/en child should suggest the translation keys"
+
+
+def test_the_parent_key_hint_stays_quiet_where_nesting_is_legal():
+    from loader import missing_parent_hint
+
+    # A block scalar is followed by deeper lines by design.
+    assert missing_parent_hint(["header: |", "  # 주간 시간표"], 1) is None
+    # So is a key with no value yet.
+    assert missing_parent_hint(["pause_reason:", "  ko: 사유"], 1) is None
+    # A sibling at the same depth is not nested at all.
+    assert missing_parent_hint(["paused: true", "pause_reason:"], 1) is None
+    # `key:value` is a different mistake with its own hint.
+    assert missing_parent_hint(["events:\u2500\u2500", "  - host: A"], 1) is None
+
+
+def test_the_parent_key_hint_names_any_key_not_only_translations():
+    message = read_broken("schedule: weekly\n  hour: 5\n")
+
+    assert "Line 1 already has a value" in message, message
+    assert "pause_reason" not in message, "only a ko/en child should suggest translation keys"
+
+
 def test_valid_templates_produce_no_false_hint():
     """Colons inside URLs and Korean text must not be mistaken for a missing space."""
     from loader import read_yaml
