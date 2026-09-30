@@ -233,10 +233,9 @@ python scripts/tests/test_ksl.py
 수동 실행으로만 합니다 ([DEPLOYMENT.md 1-4](docs/DEPLOYMENT.md)).
 모든 설정 항목이 주석과 함께 채워진 예시는 `docs/examples/` 에 있습니다.
 
-> ⚠️ **월요일에 주가 바뀌어도 시간표가 저절로 넘어가지 않습니다.** 이 저장소는 포크라서
-> GitHub가 매일 도는 예약 실행을 꺼 두었고, 지금까지 한 번도 돌지 않았습니다. 해결 전까지는
-> **매주 월요일 `Actions` → `Run workflow`** 를 한 번 눌러 주세요. 켜는 방법은
-> [DEPLOYMENT.md 3-3](docs/DEPLOYMENT.md)에 있습니다.
+> 푸시가 없어도 워크플로가 **매일 한 번, 월요일엔 두 번 더** 스스로 돌아 시간표를 새
+> 주로 넘깁니다. 단, **빌드가 빨간불인 동안에는 자동 갱신도 멈춥니다** — 실패를 오래
+> 두지 마세요. 자세한 내용은 [DEPLOYMENT.md 3-3](docs/DEPLOYMENT.md).
 
 ### 빌드가 실패했다면
 

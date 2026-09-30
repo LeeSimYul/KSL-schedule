@@ -426,8 +426,9 @@ python scripts/tests/test_ksl.py
 ## 8. 자주 막히는 지점 / Troubleshooting
 
 **월요일이 지났는데 시간표가 지난주 그대로예요**
-→ 포크된 저장소라 매일 도는 예약 실행이 꺼져 있습니다. `Actions` → `Run workflow` 를
-눌러 주세요. 근본 해결은 [DEPLOYMENT.md 3-3](DEPLOYMENT.md)을 참고하세요.
+→ `Actions` 에서 최근 실행이 빨간불인지 먼저 보세요. 빌드가 실패하는 동안에는 예약
+실행도 실패해서 시간표가 멈춥니다. 모두 초록불이라면 GitHub가 예약 실행을 늦춘 것이니
+`Run workflow` 를 한 번 눌러 주세요. 자세한 내용은 [DEPLOYMENT.md 3-3](DEPLOYMENT.md).
 
 **시간표가 갱신되지 않아요**
 → Actions 로그에서 `Warning: no webhook URL found` 를 확인하세요. 해당 레인의 secret이
