@@ -91,6 +91,10 @@ events:
   # ── 일요일 / Sunday · 별빛반 ──────────────────────────────────────────────────────
   - host: gom 0703
     name: "KSL 별빛반"
+    paused: true
+      ko: 담임선생님 개인 사정
+      en: Teacher unavailable
+    paused_until: "2026-10-05"
     tags: ["class", "vocabulary"]
     kind: class
     level: starlight
@@ -109,7 +113,6 @@ events:
       hour: 22
       minute: 0
       duration: 60
-    paused: true
 
 # ── 재충전의 날 / Recharging days ─────────────────────────────────────────────────────
 # 여기 적은 날짜는 🔋 전용 임베드로 바뀌고, 그날 KSL 수업은 통합 시간표에서도 빠집니다.
