@@ -52,7 +52,7 @@ events:
       ko: 감상부 (감상 이벤트)
       en: Appreciation Club (Watching Event)
     description:
-      ko: 배운 수어를 편하게 써 보는 감상 이벤트입니다. 반에 상관없이 누구나 환영합니다.
+      ko: 배운 수어를 편하게 써 보는 감상 이벤트입니다. 반 상관없이 누구나 환영합니다.
       en: A relaxed session for using what you have learned. All classes welcome.
     platforms: ["pcvr", "quest", "desktop"]
     schedule:
@@ -63,6 +63,28 @@ events:
       interval: 14
       duration: 120
     paused: true
+
+  # ── 토요일 / Saturday · 별빛반 ──────────────────────────────────────────────────────
+  - host: gom 0703
+    name: "KSL 씨앗반"
+    tags: ["class", "basic"]
+    kind: class
+    level: seed
+    role: homeroom_teacher
+    title:
+      ko: 씨앗반 (입문) · 야간반
+      en: Seed Class (Introductory) · Night
+    description:
+      ko: 한국수어의 기본적인 지문자와 인사말을 익힙니다.
+      en: Learn the basic fingerspelling and greetings in Korean Sign Language.
+    platforms: ["pcvr", "quest", "desktop"]
+    hand_tracking: recommended
+    schedule:
+      basis: "2025-12-06"
+      day: Saturday
+      hour: 22
+      minute: 0
+      duration: 60
 
   # ── 토요일 / Saturday · 탐험부 ─────────────────────────────────────────────────────
   # 수업이 아니므로 level 을 지정하지 않습니다 - 학급 라인이 표시되지 않습니다.
@@ -76,7 +98,7 @@ events:
       ko: 탐험부 (현장체험학습)
       en: Expedition Club (Field Trip)
     description:
-      ko: 배운 수어를 편하게 써 보는 현장체험학습입니다. 반에 상관없이 누구나 환영합니다.
+      ko: 배운 수어를 편하게 써 보는 현장체험학습입니다. 반 상관없이 누구나 환영합니다.
       en: A relaxed session for using what you have learned. All classes welcome.
     platforms: ["pcvr", "quest"]
     hand_tracking: supported
