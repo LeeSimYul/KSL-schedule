@@ -91,6 +91,11 @@ events:
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
   - host: TOM_JUN
     name: "KSL 자유 모임"
+    paused: true
+    pause_reason:
+      ko: 탐험부장 외부 출장
+      en: Exploration head business trip
+    paused_until: "2026-10-10"
     tags: ["social", "practice"]
     kind: social
     role: exploration_head
