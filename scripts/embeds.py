@@ -505,7 +505,7 @@ def calculate_notable_date_emojis(year: int) -> dict[tuple[int, int], str]:
         (3,  17): "🍀",   # St. Patrick's Day
         (4,  1):  "🥳",   # April Fools Day
         (4,  8):  "🎓",   # Anniversary of the founding of Gallaudet University
-        (4,  15): "<:aslA:770863405380665345>",  # National ASL Day
+        (4,  15): "🤟",  # National ASL Day
         (4,  22): "🌱",   # Earth Day
         (5,  5):  "🧒",   # 어린이날 / Children's Day
         (6,  5):  "🌍",   # World Environment Day
@@ -514,7 +514,7 @@ def calculate_notable_date_emojis(year: int) -> dict[tuple[int, int], str]:
         (9,  21): "🕊️",   # International Day of Peace
         (9,  23): "🤟",   # International Day of Sign Languages
         (10, 9):  "🇰🇷",   # 한글날 / Hangul Day
-        (10, 10): "<:hhlogo:586607081000271877>",  # Helping Hands Discord Server Anniversary
+        (10, 10): "🤟",  # Helping Hands Discord Server Anniversary
         (10, 31): "🎃",   # Halloween
         (12, 24): "🎄",   # Christmas Eve
         (12, 25): "🎅",   # Christmas Day
