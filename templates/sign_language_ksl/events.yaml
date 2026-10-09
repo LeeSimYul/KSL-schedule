@@ -45,6 +45,7 @@ events:
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
   - host: EEVEE_03
     name: "KSL 자유 모임"
+    paused: true
     tags: ["social", "practice"]
     kind: social
     role: appreciation_head
@@ -62,11 +63,14 @@ events:
       minute: 0
       interval: 14
       duration: 120
-    paused: true
 
   # ── 토요일 / Saturday · 씨앗반 ──────────────────────────────────────────────────────
   - host: gom 0703
     name: "KSL 씨앗반"
+    paused: true
+    pause_reason:
+      ko: 담임선생님 개인 사정
+      en: Teacher unavailable
     tags: ["class", "basic"]
     kind: class
     level: seed
@@ -91,11 +95,6 @@ events:
   # 격주 진행(interval: 14). basis 는 실제로 진행한 주의 날짜여야 합니다.
   - host: TOM_JUN
     name: "KSL 자유 모임"
-    paused: true
-    pause_reason:
-      ko: 탐험부장 외부 출장
-      en: Exploration head business trip
-    paused_until: "2026-10-10"
     tags: ["social", "practice"]
     kind: social
     role: exploration_head
@@ -122,7 +121,6 @@ events:
     pause_reason:
       ko: 담임선생님 개인 사정
       en: Teacher unavailable
-    paused_until: "2026-10-05"
     tags: ["class", "vocabulary"]
     kind: class
     level: starlight
@@ -147,7 +145,7 @@ events:
 # 'until' 은 끝날 포함이며, 생략하면 하루만 휴무입니다.
 # 음력 공휴일(설날·추석)은 해마다 날짜가 달라지므로 매년 직접 갱신해 주세요.
 closures:
-  - date: "2026-10-05"
+  - date: "2026-10-09"
     reason:
-      ko: 개천절 - 운영진 휴무
-      en: National Foundation Day - staff off
+      ko: 한글날 - 운영진 휴무
+      en: Hangul Day - staff off
